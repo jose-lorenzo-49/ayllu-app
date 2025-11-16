@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, MessageCircle, Send, UserPlus, Search, Home, Users, Mail, User, X, Check, ArrowLeft, Edit2, MapPin, Bell, LogOut, GraduationCap, Sparkles, TrendingUp, Share2, Image as ImageIcon } from 'lucide-react';
+import { supabase } from './lib/supabase';
 
 const CARRERAS = [
   "Derecho", "Medicina", "Ingeniería de Sistemas", "Administración",
@@ -10,6 +11,55 @@ export default function AylluIntegrado() {
   const [pantalla, setPantalla] = useState('landing');
   const [modoAuth, setModoAuth] = useState('login');
   const [currentUser, setCurrentUser] = useState(null);
+
+  // Cargar datos de Supabase al iniciar
+  useEffect(() => {
+    loadSupabaseData();
+  }, []);
+
+  const loadSupabaseData = async () => {
+    try {
+      // Cargar posts de Supabase
+      const { data: postsData } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          users(id, name, username, faculty, avatar),
+          likes(user_id),
+          comments(*, users(name, avatar))
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (postsData && postsData.length > 0) {
+        const formattedPosts = postsData.map(post => ({
+          id: post.id,
+          userId: post.user_id,
+          content: post.content,
+          image: post.image,
+          likes: post.likes?.map(like => like.user_id) || [],
+          comments: post.comments?.map(comment => ({
+            userId: comment.user_id,
+            text: comment.text,
+            timestamp: new Date(comment.created_at).getTime()
+          })) || [],
+          timestamp: new Date(post.created_at).getTime()
+        }));
+        setAllPosts(formattedPosts);
+      }
+
+      // Cargar usuarios de Supabase
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('*');
+      
+      if (usersData && usersData.length > 0) {
+        setUsers(usersData);
+      }
+    } catch (error) {
+      console.log('Usando datos locales:', error);
+      // Mantener datos locales si Supabase falla
+    }
+  };
   const [formData, setFormData] = useState({
     email: '',
     nombre: '',
@@ -132,33 +182,41 @@ export default function AylluIntegrado() {
   const [newComment, setNewComment] = useState({});
   const [imagePreview, setImagePreview] = useState(null);
 
-  const handleLogin = () => {
-    setCurrentUser({
-      id: 1,
-      name: 'Carlos Ruiz',
-      username: 'carlos_ruiz',
-      faculty: 'Derecho',
-      year: '3er año',
-      bio: 'Estudiante de San Marcos 🎓',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop',
-      connections: [2, 3, 4],
-      location: 'Lima, Perú'
-    });
-    setUsers([...users, {
-      id: 1,
-      name: 'Carlos Ruiz',
-      username: 'carlos_ruiz',
-      faculty: 'Derecho',
-      year: '3er año',
-      bio: 'Estudiante de San Marcos 🎓',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop',
-      connections: [2, 3, 4],
-      location: 'Lima, Perú'
-    }]);
-    setPantalla('app');
+  const handleLogin = async () => {
+    if (!formData.email?.trim() || !formData.password?.trim()) {
+      alert('Por favor ingresa email y contraseña');
+      return;
+    }
+
+    try {
+      // Buscar usuario en Supabase
+      const { data: userData } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', formData.email.trim())
+        .single();
+
+      if (userData) {
+        setCurrentUser(userData);
+        // Limpiar formulario
+        setFormData({
+          email: '',
+          nombre: '',
+          carrera: '',
+          password: '',
+          confirmPassword: ''
+        });
+        setPantalla('app');
+      } else {
+        alert('Usuario no encontrado. Verifica tu email.');
+      }
+    } catch (error) {
+      console.error('Error login:', error);
+      alert('Error al iniciar sesión. Verifica tus credenciales.');
+    }
   };
 
-  const handleRegistro = () => {
+  const handleRegistro = async () => {
     if (formData.password !== formData.confirmPassword) {
       alert('Las contraseñas no coinciden');
       return;
@@ -167,8 +225,17 @@ export default function AylluIntegrado() {
       alert('Por favor completa todos los campos');
       return;
     }
+    if (!formData.email.includes('@unmsm.edu.pe')) {
+      alert('Debes usar tu email institucional @unmsm.edu.pe');
+      return;
+    }
+    if (formData.password.length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
     const newUser = {
-      id: 1,
+      id: Date.now(), // ID temporal
       name: formData.nombre,
       username: formData.nombre.toLowerCase().replace(/ /g, '_'),
       faculty: formData.carrera,
@@ -178,6 +245,30 @@ export default function AylluIntegrado() {
       connections: [],
       location: 'Lima, Perú'
     };
+
+    try {
+      // Intentar guardar en Supabase
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{
+          email: formData.email,
+          name: formData.nombre,
+          username: formData.nombre.toLowerCase().replace(/ /g, '_'),
+          faculty: formData.carrera,
+          year: '1er año',
+          bio: 'Estudiante de San Marcos 🎓',
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop'
+        }])
+        .select()
+        .single();
+
+      if (data) {
+        newUser.id = data.id;
+      }
+    } catch (error) {
+      console.log('Usando registro local:', error);
+    }
+
     setCurrentUser(newUser);
     setUsers([...users, newUser]);
     setPantalla('app');
@@ -193,8 +284,49 @@ export default function AylluIntegrado() {
     setUsers(users.map(u => u.id === userId ? {...u, connections: [...u.connections, currentUser.id]} : u));
   };
 
-  const createPost = () => {
-    if (newPost.trim() || imagePreview) {
+  const createPost = async () => {
+    if (!newPost.trim() && !imagePreview) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .insert([{
+          user_id: currentUser.id,
+          content: newPost,
+          image: imagePreview
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        // Fallback a localStorage si falla Supabase
+        setAllPosts([{
+          id: allPosts.length + 1,
+          userId: currentUser.id,
+          content: newPost,
+          image: imagePreview,
+          likes: [],
+          comments: [],
+          timestamp: Date.now()
+        }, ...allPosts]);
+      } else {
+        const newPostFormatted = {
+          id: data.id,
+          userId: currentUser.id,
+          content: data.content,
+          image: data.image,
+          likes: [],
+          comments: [],
+          timestamp: new Date(data.created_at).getTime()
+        };
+        setAllPosts([newPostFormatted, ...allPosts]);
+      }
+      
+      setNewPost('');
+      setImagePreview(null);
+    } catch (error) {
+      console.error('Error creating post:', error);
+      // Fallback a localStorage
       setAllPosts([{
         id: allPosts.length + 1,
         userId: currentUser.id,
@@ -375,7 +507,10 @@ export default function AylluIntegrado() {
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
               <div className="flex gap-2 mb-6">
                 <button
-                  onClick={() => setModoAuth('login')}
+                  onClick={() => {
+                    setModoAuth('login');
+                    setFormData({ email: '', nombre: '', carrera: '', password: '', confirmPassword: '' });
+                  }}
                   className={`flex-1 py-2 rounded-lg font-medium transition-all ${
                     modoAuth === 'login' ? 'bg-white text-blue-900' : 'text-white hover:bg-white/10'
                   }`}
@@ -383,7 +518,10 @@ export default function AylluIntegrado() {
                   Entrar
                 </button>
                 <button
-                  onClick={() => setModoAuth('registro')}
+                  onClick={() => {
+                    setModoAuth('registro');
+                    setFormData({ email: '', nombre: '', carrera: '', password: '', confirmPassword: '' });
+                  }}
                   className={`flex-1 py-2 rounded-lg font-medium transition-all ${
                     modoAuth === 'registro' ? 'bg-white text-blue-900' : 'text-white hover:bg-white/10'
                   }`}
@@ -395,9 +533,11 @@ export default function AylluIntegrado() {
               {modoAuth === 'login' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-white mb-2">Email</label>
+                    <label className="block text-sm font-medium text-white mb-2">Email Institucional</label>
                     <input
                       type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
                       className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       placeholder="tu@unmsm.edu.pe"
                     />
@@ -406,16 +546,46 @@ export default function AylluIntegrado() {
                     <label className="block text-sm font-medium text-white mb-2">Contraseña</label>
                     <input
                       type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
                       className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       placeholder="••••••••"
                     />
                   </div>
+                  <div className="flex items-center justify-between text-sm mb-4">
+                    <label className="flex items-center text-white">
+                      <input type="checkbox" className="mr-2 rounded" />
+                      Recordarme
+                    </label>
+                    <button 
+                      type="button"
+                      onClick={() => alert('Funcionalidad próximamente. Contacta al administrador del sistema.')}
+                      className="text-cyan-300 hover:text-cyan-200 transition-colors"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+                  
                   <button
                     onClick={handleLogin}
-                    className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all"
+                    disabled={!formData.email || !formData.password}
+                    className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Entrar
+                    Iniciar Sesión
                   </button>
+                  
+                  <div className="text-center text-sm text-cyan-200 mt-4">
+                    ¿Primera vez en Ayllu? 
+                    <button 
+                      onClick={() => {
+                        setModoAuth('registro');
+                        setFormData({ email: '', nombre: '', carrera: '', password: '', confirmPassword: '' });
+                      }}
+                      className="text-white font-semibold hover:underline ml-1"
+                    >
+                      Crear cuenta
+                    </button>
+                  </div>
                 </div>
               )}
 

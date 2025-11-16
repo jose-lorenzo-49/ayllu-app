@@ -2,6 +2,7 @@
   "name": "ayllu-unmsm",
   "version": "1.0.0",
   "description": "Red social para estudiantes de UNMSM",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
