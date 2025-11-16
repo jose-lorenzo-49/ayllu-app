@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Send, UserPlus, Search, Home, Users, Mail, User, X, Check, ArrowLeft, Edit2, MapPin, Bell, LogOut, GraduationCap, Sparkles, TrendingUp, Share2, Image as ImageIcon } from 'lucide-react';
+import { Heart, MessageCircle, Send, UserPlus, Search, Home, Users, Mail, User, X, Check, ArrowLeft, Edit2, MapPin, Bell, LogOut, GraduationCap, Sparkles, TrendingUp, Share2, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { supabase } from './lib/supabase';
+import authService from './services/authService';
 
 const CARRERAS = [
   "Derecho", "Medicina", "Ingeniería de Sistemas", "Administración",
@@ -8,14 +9,35 @@ const CARRERAS = [
 ];
 
 export default function AylluIntegrado() {
-  const [pantalla, setPantalla] = useState('landing');
+  const [pantalla, setPantalla] = useState('loading');
   const [modoAuth, setModoAuth] = useState('login');
   const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   // Cargar datos de Supabase al iniciar
   useEffect(() => {
-    loadSupabaseData();
+    checkAuthState();
   }, []);
+
+  const checkAuthState = async () => {
+    try {
+      const { success, session, profile } = await authService.getCurrentSession();
+      
+      if (success && session && profile) {
+        setCurrentUser(profile);
+        await loadSupabaseData();
+        setPantalla('app');
+      } else {
+        setPantalla('landing');
+      }
+    } catch (error) {
+      console.error('Error verificando sesión:', error);
+      setPantalla('landing');
+    }
+  };
 
   const loadSupabaseData = async () => {
     try {
@@ -56,8 +78,7 @@ export default function AylluIntegrado() {
         setUsers(usersData);
       }
     } catch (error) {
-      console.log('Usando datos locales:', error);
-      // Mantener datos locales si Supabase falla
+      console.log('Error cargando datos:', error);
     }
   };
   const [formData, setFormData] = useState({
@@ -184,21 +205,23 @@ export default function AylluIntegrado() {
 
   const handleLogin = async () => {
     if (!formData.email?.trim() || !formData.password?.trim()) {
-      alert('Por favor ingresa email y contraseña');
+      setAuthError('Por favor ingresa email y contraseña');
       return;
     }
 
-    try {
-      // Buscar usuario en Supabase
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', formData.email.trim())
-        .single();
+    setAuthLoading(true);
+    setAuthError('');
+    setAuthSuccess('');
 
-      if (userData) {
-        setCurrentUser(userData);
-        // Limpiar formulario
+    try {
+      const result = await authService.signIn({
+        email: formData.email.trim(),
+        password: formData.password
+      });
+
+      if (result.success) {
+        setCurrentUser(result.data.profile);
+        await loadSupabaseData();
         setFormData({
           email: '',
           nombre: '',
@@ -208,70 +231,108 @@ export default function AylluIntegrado() {
         });
         setPantalla('app');
       } else {
-        alert('Usuario no encontrado. Verifica tu email.');
+        setAuthError(result.error);
       }
     } catch (error) {
       console.error('Error login:', error);
-      alert('Error al iniciar sesión. Verifica tus credenciales.');
+      setAuthError('Error al iniciar sesión. Intenta nuevamente.');
+    } finally {
+      setAuthLoading(false);
     }
   };
 
   const handleRegistro = async () => {
     if (formData.password !== formData.confirmPassword) {
-      alert('Las contraseñas no coinciden');
+      setAuthError('Las contraseñas no coinciden');
       return;
     }
     if (!formData.nombre || !formData.carrera || !formData.email) {
-      alert('Por favor completa todos los campos');
+      setAuthError('Por favor completa todos los campos');
       return;
     }
     if (!formData.email.includes('@unmsm.edu.pe')) {
-      alert('Debes usar tu email institucional @unmsm.edu.pe');
+      setAuthError('Debes usar tu email institucional @unmsm.edu.pe');
       return;
     }
     if (formData.password.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres');
+      setAuthError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
-    const newUser = {
-      id: Date.now(), // ID temporal
-      name: formData.nombre,
-      username: formData.nombre.toLowerCase().replace(/ /g, '_'),
-      faculty: formData.carrera,
-      year: '1er año',
-      bio: 'Estudiante de San Marcos 🎓',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop',
-      connections: [],
-      location: 'Lima, Perú'
-    };
+    setAuthLoading(true);
+    setAuthError('');
+    setAuthSuccess('');
 
     try {
-      // Intentar guardar en Supabase
-      const { data, error } = await supabase
-        .from('users')
-        .insert([{
-          email: formData.email,
-          name: formData.nombre,
-          username: formData.nombre.toLowerCase().replace(/ /g, '_'),
-          faculty: formData.carrera,
-          year: '1er año',
-          bio: 'Estudiante de San Marcos 🎓',
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop'
-        }])
-        .select()
-        .single();
+      const result = await authService.signUp({
+        email: formData.email.trim(),
+        password: formData.password,
+        name: formData.nombre.trim(),
+        faculty: formData.carrera
+      });
 
-      if (data) {
-        newUser.id = data.id;
+      if (result.success) {
+        // Sesión iniciada automáticamente
+        setCurrentUser(result.data.profile);
+        await loadSupabaseData();
+        setFormData({
+          email: '',
+          nombre: '',
+          carrera: '',
+          password: '',
+          confirmPassword: ''
+        });
+        setPantalla('app');
+        setAuthSuccess(result.message);
+      } else {
+        setAuthError(result.error);
       }
     } catch (error) {
-      console.log('Usando registro local:', error);
+      console.error('Error registro:', error);
+      setAuthError('Error al crear cuenta. Intenta nuevamente.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!formData.email?.trim()) {
+      setAuthError('Por favor ingresa tu email');
+      return;
     }
 
-    setCurrentUser(newUser);
-    setUsers([...users, newUser]);
-    setPantalla('app');
+    setAuthLoading(true);
+    setAuthError('');
+    setAuthSuccess('');
+
+    try {
+      const result = await authService.resetPassword(formData.email.trim());
+
+      if (result.success) {
+        setAuthSuccess(result.message);
+        setTimeout(() => {
+          setShowResetPassword(false);
+          setAuthSuccess('');
+        }, 3000);
+      } else {
+        setAuthError(result.error);
+      }
+    } catch (error) {
+      console.error('Error reset password:', error);
+      setAuthError('Error al solicitar restablecimiento. Intenta nuevamente.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authService.signOut();
+      setCurrentUser(null);
+      setPantalla('landing');
+    } catch (error) {
+      console.error('Error logout:', error);
+    }
   };
 
   const getUserById = (id) => users.find(u => u.id === id) || currentUser;
@@ -439,6 +500,20 @@ export default function AylluIntegrado() {
   };
 
   // LANDING PAGE
+  if (pantalla === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-cyan-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <GraduationCap className="w-12 h-12 text-white" />
+          </div>
+          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
+          <p className="text-cyan-300 mt-4">Cargando Ayllu UNMSM...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (pantalla === 'landing') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-cyan-900 relative overflow-hidden">
@@ -532,6 +607,164 @@ export default function AylluIntegrado() {
 
               {modoAuth === 'login' && (
                 <div className="space-y-4">
+                  {authError && (
+                    <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-200 text-sm">
+                      {authError}
+                    </div>
+                  )}
+                  
+                  {authSuccess && (
+                    <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-3 text-green-200 text-sm">
+                      {authSuccess}
+                    </div>
+                  )}
+
+                  {showResetPassword ? (
+                    <>
+                      <div className="text-center mb-4">
+                        <h3 className="text-xl font-bold text-white mb-2">Recuperar Contraseña</h3>
+                        <p className="text-sm text-cyan-300">
+                          Ingresa tu email y te enviaremos instrucciones para restablecer tu contraseña
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">Email Institucional</label>
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                          placeholder="tu@unmsm.edu.pe"
+                          disabled={authLoading}
+                        />
+                      </div>
+                      
+                      <button
+                        onClick={handleResetPassword}
+                        disabled={!formData.email || authLoading}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                      >
+                        {authLoading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>Enviando...</span>
+                          </>
+                        ) : (
+                          <span>Enviar Instrucciones</span>
+                        )}
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setShowResetPassword(false);
+                          setAuthError('');
+                          setAuthSuccess('');
+                        }}
+                        className="w-full text-cyan-300 hover:text-cyan-200 transition-colors text-sm"
+                      >
+                        Volver a iniciar sesión
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">Email Institucional</label>
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                          placeholder="tu@unmsm.edu.pe"
+                          disabled={authLoading}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">Contraseña</label>
+                        <input
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) => setFormData({...formData, password: e.target.value})}
+                          onKeyPress={(e) => e.key === 'Enter' && !authLoading && handleLogin()}
+                          className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                          placeholder="••••••••"
+                          disabled={authLoading}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-sm mb-4">
+                        <label className="flex items-center text-white">
+                          <input type="checkbox" className="mr-2 rounded" />
+                          Recordarme
+                        </label>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setShowResetPassword(true);
+                            setAuthError('');
+                            setAuthSuccess('');
+                          }}
+                          disabled={authLoading}
+                          className="text-cyan-300 hover:text-cyan-200 transition-colors disabled:opacity-50"
+                        >
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      </div>
+                      
+                      <button
+                        onClick={handleLogin}
+                        disabled={!formData.email || !formData.password || authLoading}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                      >
+                        {authLoading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>Iniciando sesión...</span>
+                          </>
+                        ) : (
+                          <span>Iniciar Sesión</span>
+                        )}
+                      </button>
+                      
+                      <div className="text-center text-sm text-cyan-200 mt-4">
+                        ¿Primera vez en Ayllu? 
+                        <button 
+                          onClick={() => {
+                            setModoAuth('registro');
+                            setFormData({ email: '', nombre: '', carrera: '', password: '', confirmPassword: '' });
+                            setAuthError('');
+                            setAuthSuccess('');
+                          }}
+                          disabled={authLoading}
+                          className="text-white font-semibold hover:underline ml-1 disabled:opacity-50"
+                        >
+                          Crear cuenta
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {modoAuth === 'registro' && (
+                <div className="space-y-4">
+                  {authError && (
+                    <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-200 text-sm">
+                      {authError}
+                    </div>
+                  )}
+                  
+                  {authSuccess && (
+                    <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-3 text-green-200 text-sm">
+                      <div className="flex items-start space-x-2">
+                        <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold mb-1">¡Cuenta creada exitosamente!</p>
+                          <p className="text-xs">{authSuccess}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-white mb-2">Email Institucional</label>
                     <input
@@ -540,66 +773,9 @@ export default function AylluIntegrado() {
                       onChange={(e) => setFormData({...formData, email: e.target.value})}
                       className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       placeholder="tu@unmsm.edu.pe"
+                      disabled={authLoading}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Contraseña</label>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                      placeholder="••••••••"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-sm mb-4">
-                    <label className="flex items-center text-white">
-                      <input type="checkbox" className="mr-2 rounded" />
-                      Recordarme
-                    </label>
-                    <button 
-                      type="button"
-                      onClick={() => alert('Funcionalidad próximamente. Contacta al administrador del sistema.')}
-                      className="text-cyan-300 hover:text-cyan-200 transition-colors"
-                    >
-                      ¿Olvidaste tu contraseña?
-                    </button>
-                  </div>
-                  
-                  <button
-                    onClick={handleLogin}
-                    disabled={!formData.email || !formData.password}
-                    className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Iniciar Sesión
-                  </button>
-                  
-                  <div className="text-center text-sm text-cyan-200 mt-4">
-                    ¿Primera vez en Ayllu? 
-                    <button 
-                      onClick={() => {
-                        setModoAuth('registro');
-                        setFormData({ email: '', nombre: '', carrera: '', password: '', confirmPassword: '' });
-                      }}
-                      className="text-white font-semibold hover:underline ml-1"
-                    >
-                      Crear cuenta
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {modoAuth === 'registro' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                      placeholder="tu@unmsm.edu.pe"
-                    />
+                    <p className="text-xs text-cyan-300 mt-1">Solo emails @unmsm.edu.pe son válidos</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-white mb-2">Nombre Completo</label>
@@ -609,6 +785,7 @@ export default function AylluIntegrado() {
                       onChange={(e) => setFormData({...formData, nombre: e.target.value})}
                       className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       placeholder="Juan Pérez"
+                      disabled={authLoading}
                     />
                   </div>
                   <div>
@@ -617,6 +794,7 @@ export default function AylluIntegrado() {
                       value={formData.carrera}
                       onChange={(e) => setFormData({...formData, carrera: e.target.value})}
                       className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                      disabled={authLoading}
                     >
                       <option value="" className="text-gray-900">Selecciona tu carrera</option>
                       {CARRERAS.map(carrera => (
@@ -632,7 +810,9 @@ export default function AylluIntegrado() {
                       onChange={(e) => setFormData({...formData, password: e.target.value})}
                       className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       placeholder="••••••••"
+                      disabled={authLoading}
                     />
+                    <p className="text-xs text-cyan-300 mt-1">Mínimo 6 caracteres</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-white mb-2">Repetir Contraseña</label>
@@ -640,16 +820,42 @@ export default function AylluIntegrado() {
                       type="password"
                       value={formData.confirmPassword}
                       onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                      onKeyPress={(e) => e.key === 'Enter' && !authLoading && handleRegistro()}
                       className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       placeholder="••••••••"
+                      disabled={authLoading}
                     />
                   </div>
                   <button
                     onClick={handleRegistro}
-                    className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all"
+                    disabled={authLoading}
+                    className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                   >
-                    Crear cuenta gratis
+                    {authLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Creando cuenta...</span>
+                      </>
+                    ) : (
+                      <span>Crear cuenta gratis</span>
+                    )}
                   </button>
+                  
+                  <div className="text-center text-sm text-cyan-200 mt-4">
+                    ¿Ya tienes cuenta? 
+                    <button 
+                      onClick={() => {
+                        setModoAuth('login');
+                        setFormData({ email: '', nombre: '', carrera: '', password: '', confirmPassword: '' });
+                        setAuthError('');
+                        setAuthSuccess('');
+                      }}
+                      disabled={authLoading}
+                      className="text-white font-semibold hover:underline ml-1 disabled:opacity-50"
+                    >
+                      Iniciar sesión
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1328,9 +1534,15 @@ export default function AylluIntegrado() {
   };
 
   // APP PRINCIPAL
+  // Validar que currentUser exista antes de renderizar la app
+  if (pantalla === 'app' && !currentUser) {
+    setPantalla('landing');
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-black text-white">
-      {showLikesModal && (
+      {showLikesModal && currentUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowLikesModal(null)}>
           <div className="bg-gray-900 rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
@@ -1380,14 +1592,11 @@ export default function AylluIntegrado() {
                 )}
               </button>
               <div className="hidden md:block text-sm text-gray-400">
-                {currentUser.name}
+                {currentUser?.name || 'Usuario'}
               </div>
-              <img src={currentUser.avatar} alt={currentUser.name} className="w-10 h-10 rounded-full object-cover" />
+              <img src={currentUser?.avatar || 'https://ui-avatars.com/api/?name=User&background=random'} alt={currentUser?.name || 'User'} className="w-10 h-10 rounded-full object-cover" />
               <button
-                onClick={() => {
-                  setCurrentUser(null);
-                  setPantalla('landing');
-                }}
+                onClick={handleLogout}
                 className="text-gray-400 hover:text-red-500 p-2"
                 title="Cerrar sesión"
               >

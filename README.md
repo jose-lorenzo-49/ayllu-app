@@ -1,26 +1,72 @@
-# Ayllu UNMSM - Red Social Universitaria
+# Ayllu UNMSM - Red Social Universitaria 🎓
 
-Red social para estudiantes de la Universidad Nacional Mayor de San Marcos.
+Red social moderna para estudiantes de la Universidad Nacional Mayor de San Marcos con autenticación completa mediante Supabase.
 
-## Instalación
+## 🚀 Inicio Rápido
 
+### 1. Instalación
 ```bash
 npm install
 ```
 
-## Ejecutar en desarrollo
+### 2. Configurar Variables de Entorno
+El archivo `.env` ya está configurado con tu proyecto de Supabase.
 
+### 3. Configurar Supabase
+**IMPORTANTE**: Sigue las instrucciones en `INSTRUCCIONES_SUPABASE.md` para configurar la autenticación.
+
+O sigue el setup rápido en `SETUP_5_MINUTOS.md`.
+
+### 4. Ejecutar la Aplicación
 ```bash
 npm run dev
 ```
 
-## Construir para producción
+Abre: http://localhost:5173
+
+---
+
+## 🔐 Sistema de Autenticación
+
+### Implementado con Supabase Auth
+
+- ✅ **Login**: Acceso inmediato sin verificación de email
+- ✅ **Registro**: Con email de confirmación
+- ✅ **Recuperar Contraseña**: Con email de recuperación
+- ✅ **Perfiles Automáticos**: Creados al registrarse
+- ✅ **Sesiones Persistentes**: Login permanece activo
+
+### Archivos Clave
+- `src/services/authService.js` - Servicio completo de autenticación
+- `src/hooks/useSupabase.js` - Hook de autenticación con perfil
+- `src/AylluIntegrado.jsx` - Componente principal con UI de auth
+
+---
+
+## 📚 Documentación
+
+### Guías de Configuración
+- **`INSTRUCCIONES_SUPABASE.md`** - Pasos exactos para configurar Supabase ⭐
+- **`SETUP_5_MINUTOS.md`** - Setup express (5 minutos)
+- **`SUPABASE_AUTH_CONFIG.md`** - Guía detallada completa
+- **`QUICKSTART_AUTH.md`** - Inicio rápido
+
+### Documentación Técnica
+- **`IMPLEMENTACION_AUTH_COMPLETA.md`** - Resumen de implementación
+- **`RESUMEN_VISUAL.md`** - Resumen visual con diagramas
+- **`setup-auth-supabase.sql`** - Script SQL completo
+
+---
+
+## 📦 Construir para producción
 
 ```bash
 npm run build
 ```
 
-## Características
+---
+
+## ✨ Características
 
 ### Core Features
 - 🎨 Landing page profesional con formularios de login y registro
