@@ -1,0 +1,16 @@
+name: ayllu-unmsm
+static_sites:
+- name: ayllu-frontend
+  source_dir: /
+  github:
+    repo: tu-usuario/ayllu-unmsm
+    branch: main
+  build_command: npm run build
+  output_dir: dist
+  envs:
+  - key: VITE_SUPABASE_URL
+    scope: BUILD_TIME
+    type: SECRET
+  - key: VITE_SUPABASE_ANON_KEY
+    scope: BUILD_TIME
+    type: SECRET
