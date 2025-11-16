@@ -182,13 +182,27 @@ export const authService = {
 
       return {
         success: true,
-        message: 'Se ha enviado un email con instrucciones para restablecer tu contraseña'
+        message: 'Se ha enviado un email con instrucciones para restablecer tu contraseña. Por favor revisa tu bandeja de entrada.'
       };
     } catch (error) {
       console.error('Error solicitando reset:', error);
+      
+      // Traducir errores comunes de Supabase al español
+      let errorMessage = error.message || 'Error al solicitar restablecimiento de contraseña';
+      
+      if (errorMessage.includes('Email rate limit exceeded')) {
+        errorMessage = 'Has excedido el límite de correos. Por favor espera 10 minutos antes de intentar nuevamente.';
+      } else if (errorMessage.includes('security purposes') || errorMessage.includes('only request this after')) {
+        errorMessage = 'Por seguridad, debes esperar 10 minutos antes de solicitar otro correo de recuperación.';
+      } else if (errorMessage.includes('User not found')) {
+        errorMessage = 'No existe una cuenta con este correo electrónico.';
+      } else if (errorMessage.includes('Invalid email')) {
+        errorMessage = 'El correo electrónico ingresado no es válido.';
+      }
+      
       return {
         success: false,
-        error: error.message || 'Error al solicitar restablecimiento de contraseña'
+        error: errorMessage
       };
     }
   },

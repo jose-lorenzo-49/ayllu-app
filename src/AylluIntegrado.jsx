@@ -16,11 +16,28 @@ export default function AylluIntegrado() {
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetPasswordMode, setResetPasswordMode] = useState(false); // true cuando viene del email
+  const [newPasswordData, setNewPasswordData] = useState({ password: '', confirmPassword: '' });
+  const [lastResetRequest, setLastResetRequest] = useState(null);
 
   // Cargar datos de Supabase al iniciar
   useEffect(() => {
     checkAuthState();
+    checkResetPasswordToken();
   }, []);
+
+  const checkResetPasswordToken = () => {
+    // Verificar si hay un token de reset en la URL (viene del email)
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const type = hashParams.get('type');
+    
+    if (accessToken && type === 'recovery') {
+      // Usuario viene del link de reset password
+      setResetPasswordMode(true);
+      setPantalla('reset-password');
+    }
+  };
 
   const checkAuthState = async () => {
     try {
@@ -77,6 +94,12 @@ export default function AylluIntegrado() {
       if (usersData && usersData.length > 0) {
         setUsers(usersData);
       }
+
+      // Cargar notificaciones y conversaciones si el usuario está autenticado
+      if (currentUser) {
+        await loadNotifications();
+        await loadConversations();
+      }
     } catch (error) {
       console.log('Error cargando datos:', error);
     }
@@ -91,104 +114,261 @@ export default function AylluIntegrado() {
 
   const [users, setUsers] = useState([
     {
-      id: 2,
-      name: 'María Castro',
-      username: 'maria_unmsm',
-      faculty: 'Medicina',
-      year: '5to año',
-      bio: 'Futuro médico cirujano. Amante del café y las guardias hospitalarias ☕',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop',
-      connections: [3, 5],
-      location: 'Lima, Perú'
-    },
-    {
-      id: 3,
-      name: 'Carlos Mendoza',
-      username: 'carlos_dev',
-      faculty: 'Ingeniería de Sistemas',
-      year: '4to año',
-      bio: 'Full-stack developer | Hackathons | Emprendedor',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop',
-      connections: [2, 4],
-      location: 'Lima, Perú'
-    },
-    {
-      id: 4,
-      name: 'Ana Flores',
-      username: 'ana_letras',
-      faculty: 'Letras',
-      year: '2do año',
-      bio: 'Amo la literatura latinoamericana 📚',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop',
-      connections: [5, 6],
-      location: 'Lima, Perú'
-    },
-    {
-      id: 5,
-      name: 'Diego Ramos',
-      username: 'diego_derecho',
+      id: 'demo-1',
+      name: 'María González',
+      username: 'maria.gonzalez',
+      email: 'maria@unmsm.edu.pe',
       faculty: 'Derecho',
-      year: '5to año',
-      bio: 'Debate | Derechos Humanos | Campeón nacional',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop',
-      connections: [2, 4, 6],
-      location: 'Lima, Perú'
+      carrera: 'Derecho',
+      bio: 'Estudiante de Derecho apasionada por la justicia social 📚⚖️',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria',
+      coverImage: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800',
+      location: 'Lima, Perú',
+      website: 'mariagonzalez.pe',
+      followers: ['demo-2', 'demo-3', 'demo-5'],
+      following: ['demo-2', 'demo-4'],
+      connections: ['demo-2', 'demo-3', 'demo-5'],
+      created_at: new Date('2024-01-15').toISOString()
     },
     {
-      id: 6,
-      name: 'Lucía Torres',
-      username: 'lucia_economia',
-      faculty: 'Economía',
-      year: '3er año',
-      bio: 'Apasionada por las finanzas y el emprendimiento',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop',
-      connections: [4, 5],
-      location: 'Lima, Perú'
+      id: 'demo-2',
+      name: 'Carlos Ramírez',
+      username: 'carlos.ramirez',
+      email: 'carlos@unmsm.edu.pe',
+      faculty: 'Ingeniería de Sistemas',
+      carrera: 'Ingeniería de Sistemas',
+      bio: '💻 Desarrollador Full Stack | Tech enthusiast | UNMSM 🎓',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Carlos',
+      coverImage: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800',
+      location: 'San Miguel, Lima',
+      website: 'github.com/carlosdev',
+      followers: ['demo-1', 'demo-3', 'demo-4'],
+      following: ['demo-1', 'demo-3', 'demo-5'],
+      connections: ['demo-1', 'demo-3', 'demo-4'],
+      created_at: new Date('2024-02-20').toISOString()
     },
     {
-      id: 7,
-      name: 'Pedro Sánchez',
-      username: 'pedro_bio',
-      faculty: 'Biología',
-      year: '2do año',
-      bio: 'Conservacionista | Amante de la naturaleza 🌿',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&h=150&fit=crop',
-      connections: [],
-      location: 'Lima, Perú'
+      id: 'demo-3',
+      name: 'Ana Flores',
+      username: 'ana.flores',
+      email: 'ana@unmsm.edu.pe',
+      faculty: 'Medicina',
+      carrera: 'Medicina',
+      bio: 'Futura médica cirujana 🩺 | Voluntaria en hospitales | Amante de la ciencia',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ana',
+      coverImage: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800',
+      location: 'Pueblo Libre, Lima',
+      website: '',
+      followers: ['demo-1', 'demo-2', 'demo-4', 'demo-5'],
+      following: ['demo-2', 'demo-4'],
+      connections: ['demo-1', 'demo-2', 'demo-4'],
+      created_at: new Date('2024-03-10').toISOString()
+    },
+    {
+      id: 'demo-4',
+      name: 'Luis Torres',
+      username: 'luis.torres',
+      email: 'luis@unmsm.edu.pe',
+      faculty: 'Administración',
+      carrera: 'Administración',
+      bio: 'Emprendedor | Business Student | Marketing Digital 📊',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Luis',
+      coverImage: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800',
+      location: 'Miraflores, Lima',
+      website: 'luistorres.com',
+      followers: ['demo-2', 'demo-3', 'demo-5'],
+      following: ['demo-1', 'demo-3', 'demo-5'],
+      connections: ['demo-2', 'demo-3', 'demo-5'],
+      created_at: new Date('2024-04-05').toISOString()
+    },
+    {
+      id: 'demo-5',
+      name: 'Sofia Mendoza',
+      username: 'sofia.mendoza',
+      email: 'sofia@unmsm.edu.pe',
+      faculty: 'Psicología',
+      carrera: 'Psicología',
+      bio: '🧠 Psicóloga en formación | Salud mental matters | UNMSM Pride 💚❤️',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sofia',
+      coverImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800',
+      location: 'Jesús María, Lima',
+      website: '',
+      followers: ['demo-1', 'demo-4'],
+      following: ['demo-1', 'demo-2', 'demo-3', 'demo-4'],
+      connections: ['demo-1', 'demo-4'],
+      created_at: new Date('2024-05-12').toISOString()
     }
   ]);
 
   const [allPosts, setAllPosts] = useState([
     {
-      id: 1,
-      userId: 2,
-      content: '¡Acabo de terminar mi práctica en el Hospital Dos de Mayo! La experiencia fue increíble. San Marcos nos prepara para la realidad 💪',
-      likes: [3, 5],
-      comments: [{ userId: 3, text: 'Eres una crack!' }],
+      id: 'post-1',
+      userId: 'demo-1',
+      content: '¡Qué emoción! Acabo de terminar mi primer caso práctico en Derecho Civil. La carrera está cada vez más interesante 📚⚖️ #DerechoUNMSM #EstudianteMotivada',
+      image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600',
+      likes: ['demo-2', 'demo-3', 'demo-5'],
+      comments: [
+        { userId: 'demo-2', text: '¡Felicidades María! Se ve que le pones muchas ganas 👏', timestamp: Date.now() - 3600000 },
+        { userId: 'demo-3', text: 'Inspiras mucho! Sigue así 💪', timestamp: Date.now() - 1800000 }
+      ],
       timestamp: Date.now() - 7200000
     },
     {
-      id: 2,
-      userId: 3,
-      content: '¿Alguien para el hackathon del viernes? Necesito un equipo para desarrollar una app de delivery para la ciudad universitaria 🚀',
-      likes: [2],
-      comments: [],
+      id: 'post-2',
+      userId: 'demo-2',
+      content: '🚀 Nuevo proyecto: Desarrollando una app web con React y Supabase. La tecnología nunca deja de sorprenderme. ¿Alguien más trabajando con estas tecnologías? #WebDev #ReactJS #Supabase',
+      image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600',
+      likes: ['demo-1', 'demo-4', 'demo-5'],
+      comments: [
+        { userId: 'demo-4', text: 'Suena increíble! Me encantaría aprender React', timestamp: Date.now() - 5400000 },
+        { userId: 'demo-1', text: 'Wow Carlos, eres un crack! 🔥', timestamp: Date.now() - 3600000 }
+      ],
       timestamp: Date.now() - 14400000
     },
     {
-      id: 3,
-      userId: 4,
-      content: 'Nueva cafetería en el pabellón de Letras ☕ Los precios son accesibles y el café es buenísimo. Recomendado para estudiar',
-      likes: [5],
-      comments: [],
+      id: 'post-3',
+      userId: 'demo-3',
+      content: 'Hoy tuvimos práctica de anatomía en el laboratorio. Cada día me convenzo más de que elegí la carrera correcta 🩺❤️ La medicina es vocación #MedicinaUNMSM #FuturaDoctora',
+      image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600',
+      likes: ['demo-1', 'demo-2', 'demo-4', 'demo-5'],
+      comments: [
+        { userId: 'demo-5', text: 'Qué admirable Ana! Serás una excelente doctora 💚', timestamp: Date.now() - 7200000 },
+        { userId: 'demo-2', text: 'Mucha suerte en tus prácticas!', timestamp: Date.now() - 5400000 },
+        { userId: 'demo-1', text: 'Orgullo sanmarquino! 💪', timestamp: Date.now() - 3600000 }
+      ],
       timestamp: Date.now() - 21600000
+    },
+    {
+      id: 'post-4',
+      userId: 'demo-4',
+      content: '📊 Workshop de Marketing Digital este sábado en la Facultad de Administración. Aprenderemos sobre redes sociales, SEO y estrategias digitales. ¿Quién se anima? Inscripciones abiertas! 🚀',
+      likes: ['demo-2', 'demo-3'],
+      comments: [
+        { userId: 'demo-3', text: 'Me interesa! Cómo me inscribo?', timestamp: Date.now() - 10800000 },
+        { userId: 'demo-2', text: 'Suena genial, ahí estaré! 👍', timestamp: Date.now() - 9000000 }
+      ],
+      timestamp: Date.now() - 28800000
+    },
+    {
+      id: 'post-5',
+      userId: 'demo-5',
+      content: 'La salud mental es tan importante como la física 🧠💚 Recuerden tomarse pausas, hablar de sus emociones y pedir ayuda cuando lo necesiten. Estamos aquí para apoyarnos #SaludMental #PsicologíaUNMSM',
+      likes: ['demo-1', 'demo-2', 'demo-3', 'demo-4'],
+      comments: [
+        { userId: 'demo-1', text: 'Gracias Sofia por este recordatorio ❤️', timestamp: Date.now() - 14400000 },
+        { userId: 'demo-4', text: 'Muy necesario este mensaje 🙏', timestamp: Date.now() - 12600000 },
+        { userId: 'demo-3', text: 'Totalmente de acuerdo! 💪', timestamp: Date.now() - 10800000 }
+      ],
+      timestamp: Date.now() - 36000000
+    },
+    {
+      id: 'post-6',
+      userId: 'demo-1',
+      content: 'Tarde de estudio en la Biblioteca Central 📖☕ Hay algo mágico en estudiar rodeada de libros antiguos. UNMSM tiene una historia increíble 💚❤️',
+      likes: ['demo-3', 'demo-5'],
+      comments: [],
+      timestamp: Date.now() - 43200000
+    },
+    {
+      id: 'post-7',
+      userId: 'demo-2',
+      content: '💡 Tip para estudiantes de sistemas: No memoricen código, entiendan la lógica. La programación es resolver problemas, no copiar y pegar. #CodingTips #SistemasUNMSM',
+      likes: ['demo-4'],
+      comments: [
+        { userId: 'demo-4', text: 'Excelente consejo! Lo aplicaré', timestamp: Date.now() - 18000000 }
+      ],
+      timestamp: Date.now() - 50400000
     }
   ]);
 
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState([
+    {
+      id: 'conv-1',
+      withUserId: 'demo-2',
+      participants: ['demo-1', 'demo-2'],
+      messages: [
+        { senderId: 'demo-2', text: 'Hola María! Vi tu post sobre Derecho Civil, muy interesante', timestamp: Date.now() - 86400000 },
+        { senderId: 'demo-1', text: 'Gracias Carlos! Me encanta esta materia', timestamp: Date.now() - 82800000 },
+        { senderId: 'demo-2', text: 'Se nota tu pasión por lo que estudias 👏', timestamp: Date.now() - 79200000 },
+        { senderId: 'demo-1', text: 'Y tú cómo vas con tus proyectos de programación?', timestamp: Date.now() - 75600000 },
+        { senderId: 'demo-2', text: 'Bastante bien! Ahora estoy con React, es genial', timestamp: Date.now() - 72000000 }
+      ],
+      lastMessage: Date.now() - 72000000
+    },
+    {
+      id: 'conv-2',
+      withUserId: 'demo-3',
+      participants: ['demo-1', 'demo-3'],
+      messages: [
+        { senderId: 'demo-3', text: 'María! Cómo estás? Tiempo sin hablar', timestamp: Date.now() - 172800000 },
+        { senderId: 'demo-1', text: 'Ana! Todo bien, full con los estudios jaja', timestamp: Date.now() - 169200000 },
+        { senderId: 'demo-3', text: 'Te entiendo perfectamente! La medicina me tiene absorbida', timestamp: Date.now() - 165600000 },
+        { senderId: 'demo-1', text: 'Pero vale la pena, vas a ser una excelente doctora 🩺', timestamp: Date.now() - 162000000 },
+        { senderId: 'demo-3', text: 'Aww gracias! Tú también serás una gran abogada', timestamp: Date.now() - 158400000 },
+        { senderId: 'demo-1', text: 'Gracias amiga! 💚', timestamp: Date.now() - 154800000 }
+      ],
+      lastMessage: Date.now() - 154800000
+    },
+    {
+      id: 'conv-3',
+      withUserId: 'demo-4',
+      participants: ['demo-2', 'demo-4'],
+      messages: [
+        { senderId: 'demo-4', text: 'Carlos, me ayudas con un tema de programación?', timestamp: Date.now() - 43200000 },
+        { senderId: 'demo-2', text: 'Claro Luis! Dime en qué te puedo ayudar', timestamp: Date.now() - 39600000 },
+        { senderId: 'demo-4', text: 'Necesito hacer una página web para mi proyecto de marketing', timestamp: Date.now() - 36000000 },
+        { senderId: 'demo-2', text: 'Perfecto! Podemos usar HTML, CSS y JS básico', timestamp: Date.now() - 32400000 },
+        { senderId: 'demo-4', text: 'Genial! Cuándo podemos juntarnos?', timestamp: Date.now() - 28800000 },
+        { senderId: 'demo-2', text: 'Este viernes estoy libre, te parece?', timestamp: Date.now() - 25200000 },
+        { senderId: 'demo-4', text: 'Perfecto! Nos vemos el viernes entonces 👍', timestamp: Date.now() - 21600000 }
+      ],
+      lastMessage: Date.now() - 21600000
+    }
+  ]);
   const [notificaciones, setNotificaciones] = useState([
-    { id: 1, tipo: 'like', usuario: 'María Castro', accion: 'le gustó tu publicación', tiempo: 'Hace 5 min', nueva: true },
-    { id: 2, tipo: 'conexion', usuario: 'Carlos Mendoza', accion: 'quiere conectar contigo', tiempo: 'Hace 1 hora', nueva: true }
+    {
+      id: 'notif-1',
+      type: 'like',
+      userId: 'demo-2',
+      postId: 'post-1',
+      timestamp: Date.now() - 3600000,
+      read: false,
+      created_at: new Date(Date.now() - 3600000).toISOString()
+    },
+    {
+      id: 'notif-2',
+      type: 'comment',
+      userId: 'demo-3',
+      postId: 'post-1',
+      timestamp: Date.now() - 1800000,
+      read: false,
+      created_at: new Date(Date.now() - 1800000).toISOString()
+    },
+    {
+      id: 'notif-3',
+      type: 'follow',
+      userId: 'demo-5',
+      timestamp: Date.now() - 7200000,
+      read: false,
+      created_at: new Date(Date.now() - 7200000).toISOString()
+    },
+    {
+      id: 'notif-4',
+      type: 'like',
+      userId: 'demo-4',
+      postId: 'post-6',
+      timestamp: Date.now() - 14400000,
+      read: true,
+      created_at: new Date(Date.now() - 14400000).toISOString()
+    },
+    {
+      id: 'notif-5',
+      type: 'message',
+      userId: 'demo-2',
+      timestamp: Date.now() - 21600000,
+      read: true,
+      created_at: new Date(Date.now() - 21600000).toISOString()
+    }
   ]);
 
   const [activeView, setActiveView] = useState('feed');
@@ -202,6 +382,7 @@ export default function AylluIntegrado() {
   const [showComments, setShowComments] = useState({});
   const [newComment, setNewComment] = useState({});
   const [imagePreview, setImagePreview] = useState(null);
+  const [isPosting, setIsPosting] = useState(false);
 
   const handleLogin = async () => {
     if (!formData.email?.trim() || !formData.password?.trim()) {
@@ -301,6 +482,21 @@ export default function AylluIntegrado() {
       return;
     }
 
+    // Validar tiempo mínimo entre solicitudes (10 minutos)
+    const now = Date.now();
+    const minWaitTime = 10 * 60 * 1000; // 10 minutos en milisegundos
+    
+    if (lastResetRequest && (now - lastResetRequest) < minWaitTime) {
+      const remainingSeconds = Math.ceil((minWaitTime - (now - lastResetRequest)) / 1000);
+      const remainingMinutes = Math.floor(remainingSeconds / 60);
+      const remainingSecondsInMinute = remainingSeconds % 60;
+      
+      setAuthError(
+        `Por seguridad, debes esperar ${remainingMinutes} minutos y ${remainingSecondsInMinute} segundos antes de solicitar otro correo de recuperación.`
+      );
+      return;
+    }
+
     setAuthLoading(true);
     setAuthError('');
     setAuthSuccess('');
@@ -309,13 +505,21 @@ export default function AylluIntegrado() {
       const result = await authService.resetPassword(formData.email.trim());
 
       if (result.success) {
+        setLastResetRequest(Date.now());
         setAuthSuccess(result.message);
         setTimeout(() => {
           setShowResetPassword(false);
           setAuthSuccess('');
         }, 3000);
       } else {
-        setAuthError(result.error);
+        // Traducir mensajes de error de Supabase al español
+        let errorMsg = result.error;
+        if (errorMsg.includes('security purposes') || errorMsg.includes('only request this after')) {
+          errorMsg = 'Por seguridad, debes esperar 10 minutos antes de solicitar otro correo de recuperación.';
+        } else if (errorMsg.includes('Email rate limit exceeded')) {
+          errorMsg = 'Has excedido el límite de correos. Por favor espera 10 minutos antes de intentar nuevamente.';
+        }
+        setAuthError(errorMsg);
       }
     } catch (error) {
       console.error('Error reset password:', error);
@@ -335,19 +539,140 @@ export default function AylluIntegrado() {
     }
   };
 
-  const getUserById = (id) => users.find(u => u.id === id) || currentUser;
+  const handleUpdatePassword = async () => {
+    if (!newPasswordData.password || !newPasswordData.confirmPassword) {
+      setAuthError('Por favor completa ambos campos');
+      return;
+    }
+
+    if (newPasswordData.password !== newPasswordData.confirmPassword) {
+      setAuthError('Las contraseñas no coinciden');
+      return;
+    }
+
+    if (newPasswordData.password.length < 6) {
+      setAuthError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError('');
+    setAuthSuccess('');
+
+    try {
+      const result = await authService.updatePassword(newPasswordData.password);
+
+      if (result.success) {
+        setAuthSuccess(result.message);
+        setNewPasswordData({ password: '', confirmPassword: '' });
+        
+        // Redirigir a login después de 2 segundos
+        setTimeout(() => {
+          setResetPasswordMode(false);
+          setPantalla('landing');
+          setModoAuth('login');
+          window.location.hash = ''; // Limpiar hash de la URL
+        }, 2000);
+      } else {
+        setAuthError(result.error);
+      }
+    } catch (error) {
+      console.error('Error actualizando contraseña:', error);
+      setAuthError('Error al actualizar contraseña. Intenta nuevamente.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const getUserById = (id) => {
+    const user = users.find(u => u.id === id);
+    if (!user && id === currentUser?.id) return currentUser;
+    if (!user) {
+      // Usuario por defecto si no se encuentra
+      return {
+        id,
+        name: 'Usuario',
+        username: 'usuario',
+        faculty: 'UNMSM',
+        avatar: `https://ui-avatars.com/api/?name=Usuario&background=random`,
+        bio: '',
+        connections: [],
+        location: 'Lima, Perú'
+      };
+    }
+    return user;
+  };
+
   const isConnected = (userId) => currentUser?.connections.includes(userId);
   const getFeedPosts = () => allPosts.filter(post => currentUser?.connections.includes(post.userId)).sort((a, b) => b.timestamp - a.timestamp);
   const getSuggestions = () => users.filter(u => u.id !== currentUser?.id && !currentUser?.connections.includes(u.id));
 
-  const addConnection = (userId) => {
-    setCurrentUser(prev => ({ ...prev, connections: [...prev.connections, userId] }));
-    setUsers(users.map(u => u.id === userId ? {...u, connections: [...u.connections, currentUser.id]} : u));
+  const addConnection = async (userId) => {
+    try {
+      // Crear conexión en Supabase
+      const { error } = await supabase
+        .from('connections')
+        .insert([{
+          user_id: currentUser.id,
+          connected_user_id: userId
+        }]);
+
+      if (error) {
+        console.error('Error creando conexión:', error);
+        return;
+      }
+
+      // Actualizar el array de connections en la tabla users (ambos usuarios)
+      const updatedConnections = [...(currentUser.connections || []), userId];
+      
+      await supabase
+        .from('users')
+        .update({ connections: updatedConnections })
+        .eq('id', currentUser.id);
+
+      // Obtener conexiones del otro usuario y agregarle este usuario
+      const { data: otherUser } = await supabase
+        .from('users')
+        .select('connections')
+        .eq('id', userId)
+        .single();
+
+      if (otherUser) {
+        const otherUserConnections = [...(otherUser.connections || []), currentUser.id];
+        await supabase
+          .from('users')
+          .update({ connections: otherUserConnections })
+          .eq('id', userId);
+      }
+
+      // Actualizar estado local
+      setCurrentUser(prev => ({ ...prev, connections: updatedConnections }));
+      setUsers(users.map(u => 
+        u.id === userId 
+          ? {...u, connections: [...(u.connections || []), currentUser.id]} 
+          : u.id === currentUser.id
+          ? {...u, connections: updatedConnections}
+          : u
+      ));
+
+      // Crear notificación
+      await supabase
+        .from('notifications')
+        .insert([{
+          user_id: userId,
+          type: 'follow',
+          from_user_id: currentUser.id
+        }]);
+
+    } catch (error) {
+      console.error('Error al conectar:', error);
+    }
   };
 
   const createPost = async () => {
     if (!newPost.trim() && !imagePreview) return;
 
+    setIsPosting(true);
     try {
       const { data, error } = await supabase
         .from('posts')
@@ -360,6 +685,7 @@ export default function AylluIntegrado() {
         .single();
 
       if (error) {
+        console.error('Error creando post:', error);
         // Fallback a localStorage si falla Supabase
         setAllPosts([{
           id: allPosts.length + 1,
@@ -399,18 +725,62 @@ export default function AylluIntegrado() {
       }, ...allPosts]);
       setNewPost('');
       setImagePreview(null);
+    } finally {
+      setIsPosting(false);
     }
   };
 
-  const addComment = (postId, text) => {
+  const addComment = async (postId, text) => {
     if (!text.trim()) return;
-    setAllPosts(allPosts.map(post => {
-      if (post.id === postId) {
-        return {...post, comments: [...post.comments, { userId: currentUser.id, text: text.trim(), timestamp: Date.now() }]};
+
+    try {
+      // Insertar comentario en Supabase
+      const { data, error } = await supabase
+        .from('comments')
+        .insert([{
+          post_id: postId,
+          user_id: currentUser.id,
+          text: text.trim()
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error agregando comentario:', error);
+        return;
       }
-      return post;
-    }));
-    setNewComment({...newComment, [postId]: ''});
+
+      // Actualizar estado local
+      setAllPosts(allPosts.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            comments: [...post.comments, {
+              userId: currentUser.id,
+              text: text.trim(),
+              timestamp: new Date(data.created_at).getTime()
+            }]
+          };
+        }
+        return post;
+      }));
+      setNewComment({...newComment, [postId]: ''});
+
+      // Crear notificación para el autor del post
+      const post = allPosts.find(p => p.id === postId);
+      if (post && post.userId !== currentUser.id) {
+        await supabase
+          .from('notifications')
+          .insert([{
+            user_id: post.userId,
+            type: 'comment',
+            from_user_id: currentUser.id,
+            post_id: postId
+          }]);
+      }
+    } catch (error) {
+      console.error('Error al comentar:', error);
+    }
   };
 
   const sharePost = (postId) => {
@@ -422,67 +792,247 @@ export default function AylluIntegrado() {
     }
   };
 
-  const handleImageSelect = (e) => {
+  const handleImageSelect = async (e) => {
     const file = e.target.files[0];
-    if (file) {
+    if (!file) return;
+
+    // Validar tamaño (máx 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La imagen no puede superar 5MB');
+      return;
+    }
+
+    // Validar tipo
+    if (!file.type.startsWith('image/')) {
+      alert('Solo se permiten archivos de imagen');
+      return;
+    }
+
+    try {
+      // Mostrar preview local inmediatamente
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
       };
       reader.readAsDataURL(file);
+
+      // Subir a Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
+      const filePath = `posts/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) {
+        console.error('Error subiendo imagen:', error);
+        // Si falla la subida, usar el preview local
+        return;
+      }
+
+      // Obtener URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from('images')
+        .getPublicUrl(filePath);
+
+      // Actualizar preview con URL pública
+      setImagePreview(publicUrl);
+    } catch (error) {
+      console.error('Error procesando imagen:', error);
+      alert('Error al procesar la imagen');
     }
   };
 
-  const likePost = (postId) => {
-    setAllPosts(allPosts.map(post => {
-      if (post.id === postId) {
-        const likes = post.likes.includes(currentUser.id)
-          ? post.likes.filter(id => id !== currentUser.id)
-          : [...post.likes, currentUser.id];
-        return {...post, likes};
+  const likePost = async (postId) => {
+    try {
+      const post = allPosts.find(p => p.id === postId);
+      const isLiked = post.likes.includes(currentUser.id);
+
+      if (isLiked) {
+        // Quitar like
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', currentUser.id);
+
+        if (error) {
+          console.error('Error quitando like:', error);
+          return;
+        }
+      } else {
+        // Dar like
+        const { error } = await supabase
+          .from('likes')
+          .insert([{
+            post_id: postId,
+            user_id: currentUser.id
+          }]);
+
+        if (error) {
+          console.error('Error dando like:', error);
+          return;
+        }
+
+        // Crear notificación para el autor del post
+        if (post.userId !== currentUser.id) {
+          await supabase
+            .from('notifications')
+            .insert([{
+              user_id: post.userId,
+              type: 'like',
+              from_user_id: currentUser.id,
+              post_id: postId
+            }]);
+        }
       }
-      return post;
-    }));
+
+      // Actualizar estado local
+      setAllPosts(allPosts.map(p => {
+        if (p.id === postId) {
+          const likes = isLiked
+            ? p.likes.filter(id => id !== currentUser.id)
+            : [...p.likes, currentUser.id];
+          return {...p, likes};
+        }
+        return p;
+      }));
+    } catch (error) {
+      console.error('Error al dar like:', error);
+    }
   };
 
-  const sendMessage = () => {
-    if (newMessage.trim() && selectedConversation !== null) {
+  const sendMessage = async () => {
+    if (!newMessage.trim() || selectedConversation === null) return;
+
+    try {
+      // Insertar mensaje en Supabase
+      const { data, error } = await supabase
+        .from('messages')
+        .insert([{
+          conversation_id: selectedConversation,
+          sender_id: currentUser.id,
+          text: newMessage.trim()
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error enviando mensaje:', error);
+        return;
+      }
+
+      // Actualizar estado local
       const convIndex = conversations.findIndex(c => c.id === selectedConversation);
       if (convIndex !== -1) {
         const updated = [...conversations];
         updated[convIndex].messages.push({
           from: currentUser.id,
-          text: newMessage,
-          timestamp: Date.now()
+          text: newMessage.trim(),
+          timestamp: new Date(data.created_at).getTime()
         });
         setConversations(updated);
         setNewMessage('');
       }
+    } catch (error) {
+      console.error('Error al enviar mensaje:', error);
     }
   };
 
-  const startConversation = (userId) => {
-    const existing = conversations.find(c => c.withUserId === userId);
-    if (existing) {
-      setSelectedConversation(existing.id);
-    } else {
-      const newConv = {
-        id: conversations.length + 1,
-        withUserId: userId,
-        messages: []
-      };
-      setConversations([...conversations, newConv]);
-      setSelectedConversation(newConv.id);
+  const startConversation = async (userId) => {
+    try {
+      // Verificar si ya existe una conversación
+      const { data: existingConv } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${userId}),and(user1_id.eq.${userId},user2_id.eq.${currentUser.id})`)
+        .maybeSingle();
+
+      if (existingConv) {
+        // Cargar mensajes de la conversación existente
+        const { data: messages } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', existingConv.id)
+          .order('created_at', { ascending: true });
+
+        const formattedMessages = messages?.map(m => ({
+          from: m.sender_id,
+          text: m.text,
+          timestamp: new Date(m.created_at).getTime()
+        })) || [];
+
+        const existing = conversations.find(c => c.id === existingConv.id);
+        if (!existing) {
+          setConversations([...conversations, {
+            id: existingConv.id,
+            withUserId: userId,
+            messages: formattedMessages
+          }]);
+        }
+        setSelectedConversation(existingConv.id);
+      } else {
+        // Crear nueva conversación
+        const { data: newConv, error } = await supabase
+          .from('conversations')
+          .insert([{
+            user1_id: currentUser.id,
+            user2_id: userId
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creando conversación:', error);
+          return;
+        }
+
+        setConversations([...conversations, {
+          id: newConv.id,
+          withUserId: userId,
+          messages: []
+        }]);
+        setSelectedConversation(newConv.id);
+      }
+      setActiveView('messages');
+    } catch (error) {
+      console.error('Error al iniciar conversación:', error);
     }
-    setActiveView('messages');
   };
 
-  const updateProfile = () => {
-    if (editingProfile) {
+  const updateProfile = async () => {
+    if (!editingProfile) return;
+
+    try {
+      // Actualizar perfil en Supabase
+      const { error } = await supabase
+        .from('users')
+        .update({
+          name: editingProfile.name,
+          faculty: editingProfile.faculty,
+          year: editingProfile.year,
+          bio: editingProfile.bio,
+          avatar: editingProfile.avatar
+        })
+        .eq('id', currentUser.id);
+
+      if (error) {
+        console.error('Error actualizando perfil:', error);
+        alert('Error al actualizar perfil');
+        return;
+      }
+
+      // Actualizar estado local
       setCurrentUser(editingProfile);
       setUsers(users.map(u => u.id === currentUser.id ? editingProfile : u));
       setEditingProfile(null);
       setActiveView('profile');
+    } catch (error) {
+      console.error('Error al actualizar perfil:', error);
     }
   };
 
@@ -495,8 +1045,93 @@ export default function AylluIntegrado() {
     return `Hace ${days}d`;
   };
 
-  const marcarNotificacionLeida = (id) => {
-    setNotificaciones(notificaciones.map(n => n.id === id ? { ...n, nueva: false } : n));
+  const marcarNotificacionLeida = async (id) => {
+    try {
+      // Marcar como leída en Supabase
+      await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', id);
+
+      // Actualizar estado local - marcar ambos campos
+      setNotificaciones(notificaciones.map(n => 
+        n.id === id ? { ...n, read: true, nueva: false } : n
+      ));
+    } catch (error) {
+      console.error('Error marcando notificación:', error);
+    }
+  };
+
+  // Cargar notificaciones desde Supabase
+  const loadNotifications = async () => {
+    if (!currentUser) return;
+
+    try {
+      const { data } = await supabase
+        .from('notifications')
+        .select(`
+          *,
+          from_user:from_user_id(name, avatar),
+          post:post_id(content)
+        `)
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (data && data.length > 0) {
+        const formattedNotifs = data.map(n => ({
+          id: n.id,
+          type: n.type,
+          userId: n.from_user_id,
+          postId: n.post_id,
+          timestamp: new Date(n.created_at).getTime(),
+          read: n.read,
+          created_at: n.created_at
+        }));
+        setNotificaciones(formattedNotifs);
+      }
+    } catch (error) {
+      console.error('Error cargando notificaciones:', error);
+    }
+  };
+
+  const loadConversations = async () => {
+    if (!currentUser) return;
+
+    try {
+      const { data } = await supabase
+        .from('conversations')
+        .select(`
+          *,
+          messages(*)
+        `)
+        .or(`user1_id.eq.${currentUser.id},user2_id.eq.${currentUser.id}`)
+        .order('updated_at', { ascending: false });
+
+      if (data && data.length > 0) {
+        const formattedConvs = data.map(conv => {
+          const withUserId = conv.user1_id === currentUser.id ? conv.user2_id : conv.user1_id;
+          
+          // Convertir mensajes al formato esperado por la UI
+          const messages = (conv.messages || [])
+            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+            .map(msg => ({
+              from: msg.sender_id,
+              text: msg.content,
+              timestamp: new Date(msg.created_at).getTime()
+            }));
+          
+          return {
+            id: conv.id,
+            withUserId,
+            messages
+          };
+        });
+        setConversations(formattedConvs);
+      }
+    } catch (error) {
+      console.error('Error cargando conversaciones:', error);
+    }
   };
 
   // LANDING PAGE
@@ -509,6 +1144,81 @@ export default function AylluIntegrado() {
           </div>
           <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
           <p className="text-cyan-300 mt-4">Cargando Ayllu UNMSM...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // PANTALLA DE RESET DE CONTRASEÑA
+  if (pantalla === 'reset-password') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-cyan-900 flex items-center justify-center p-4">
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 max-w-md w-full">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <GraduationCap className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Nueva Contraseña</h2>
+            <p className="text-cyan-300 text-sm">Ingresa tu nueva contraseña para tu cuenta de Ayllu UNMSM</p>
+          </div>
+
+          {authError && (
+            <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-200 text-sm mb-4">
+              {authError}
+            </div>
+          )}
+          
+          {authSuccess && (
+            <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-3 text-green-200 text-sm mb-4">
+              <div className="flex items-center space-x-2">
+                <Check className="w-5 h-5" />
+                <span>{authSuccess}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Nueva Contraseña</label>
+              <input
+                type="password"
+                value={newPasswordData.password}
+                onChange={(e) => setNewPasswordData({...newPasswordData, password: e.target.value})}
+                className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                placeholder="••••••••"
+                disabled={authLoading}
+              />
+              <p className="text-xs text-cyan-300 mt-1">Mínimo 6 caracteres</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Confirmar Nueva Contraseña</label>
+              <input
+                type="password"
+                value={newPasswordData.confirmPassword}
+                onChange={(e) => setNewPasswordData({...newPasswordData, confirmPassword: e.target.value})}
+                onKeyPress={(e) => e.key === 'Enter' && !authLoading && handleUpdatePassword()}
+                className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                placeholder="••••••••"
+                disabled={authLoading}
+              />
+            </div>
+
+            <button
+              onClick={handleUpdatePassword}
+              disabled={authLoading || !newPasswordData.password || !newPasswordData.confirmPassword}
+              className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold py-3 rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            >
+              {authLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Actualizando...</span>
+                </>
+              ) : (
+                <span>Actualizar Contraseña</span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -904,10 +1614,11 @@ export default function AylluIntegrado() {
                 </label>
                 <button 
                   onClick={createPost}
-                  disabled={!newPost.trim() && !imagePreview}
-                  className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-2 rounded-full font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:from-red-700 hover:to-orange-700 transition-all"
+                  disabled={(!newPost.trim() && !imagePreview) || isPosting}
+                  className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-2 rounded-full font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:from-red-700 hover:to-orange-700 transition-all flex items-center space-x-2"
                 >
-                  Publicar
+                  {isPosting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{isPosting ? 'Publicando...' : 'Publicar'}</span>
                 </button>
               </div>
             </div>
@@ -1098,7 +1809,7 @@ export default function AylluIntegrado() {
                       className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-2 rounded-full font-bold hover:from-red-700 hover:to-orange-700 transition-all flex items-center space-x-2"
                     >
                       <UserPlus size={18} />
-                      <span>Conectar</span>
+                      <span>Seguir</span>
                     </button>
                   </div>
                 </div>
@@ -1171,13 +1882,14 @@ export default function AylluIntegrado() {
           
           <div className="flex-1 bg-gray-900 p-4 overflow-y-auto">
             {conv.messages.map((msg, idx) => {
-              const isMe = msg.from === currentUser.id;
+              const senderId = msg.senderId || msg.from || msg.sender_id;
+              const isMe = senderId === currentUser.id;
               return (
                 <div key={idx} className={`mb-3 flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-xs px-4 py-2 rounded-2xl ${
                     isMe ? 'bg-gradient-to-r from-red-600 to-orange-600' : 'bg-gray-800'
                   }`}>
-                    {msg.text}
+                    {msg.text || msg.content}
                   </div>
                 </div>
               );
@@ -1224,7 +1936,7 @@ export default function AylluIntegrado() {
                     <div className="font-bold">{otherUser.name}</div>
                     {lastMessage && (
                       <div className="text-sm text-gray-400 truncate">
-                        {lastMessage.from === currentUser.id ? 'Tú: ' : ''}{lastMessage.text}
+                        {(lastMessage.senderId || lastMessage.from || lastMessage.sender_id) === currentUser.id ? 'Tú: ' : ''}{lastMessage.text || lastMessage.content}
                       </div>
                     )}
                   </div>
@@ -1248,35 +1960,49 @@ export default function AylluIntegrado() {
       <div>
         <h2 className="text-2xl font-bold mb-4">Notificaciones</h2>
         <div className="bg-gray-900 rounded-2xl overflow-hidden">
-          {notificaciones.map(notif => (
-            <div
-              key={notif.id}
-              onClick={() => marcarNotificacionLeida(notif.id)}
-              className={`p-4 border-b border-gray-800 last:border-b-0 cursor-pointer transition ${
-                notif.nueva ? 'bg-cyan-900/20 hover:bg-cyan-900/30' : 'hover:bg-gray-800'
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  notif.tipo === 'like' ? 'bg-red-100/10' :
-                  notif.tipo === 'conexion' ? 'bg-blue-100/10' : 'bg-green-100/10'
-                }`}>
-                  {notif.tipo === 'like' && <Heart className="w-5 h-5 text-red-500" />}
-                  {notif.tipo === 'conexion' && <Users className="w-5 h-5 text-blue-500" />}
-                  {notif.tipo === 'comentario' && <MessageCircle className="w-5 h-5 text-green-500" />}
+          {notificaciones.map(notif => {
+            const notifUser = getUserById(notif.userId);
+            const notifType = notif.type || notif.tipo;
+            const isNew = notif.read === false || notif.nueva === true;
+            
+            let accion = '';
+            if (notifType === 'like') accion = 'le gustó tu publicación';
+            else if (notifType === 'comment' || notifType === 'comentario') accion = 'comentó tu publicación';
+            else if (notifType === 'follow' || notifType === 'conexion') accion = 'comenzó a seguirte';
+            else if (notifType === 'message') accion = 'te envió un mensaje';
+            else accion = 'interactuó contigo';
+            
+            return (
+              <div
+                key={notif.id}
+                onClick={() => marcarNotificacionLeida(notif.id)}
+                className={`p-4 border-b border-gray-800 last:border-b-0 cursor-pointer transition ${
+                  isNew ? 'bg-cyan-900/20 hover:bg-cyan-900/30' : 'hover:bg-gray-800'
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    notifType === 'like' ? 'bg-red-100/10' :
+                    (notifType === 'follow' || notifType === 'conexion') ? 'bg-blue-100/10' : 'bg-green-100/10'
+                  }`}>
+                    {notifType === 'like' && <Heart className="w-5 h-5 text-red-500" />}
+                    {(notifType === 'follow' || notifType === 'conexion') && <Users className="w-5 h-5 text-blue-500" />}
+                    {(notifType === 'comment' || notifType === 'comentario') && <MessageCircle className="w-5 h-5 text-green-500" />}
+                    {notifType === 'message' && <Mail className="w-5 h-5 text-purple-500" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-gray-100">
+                      <span className="font-semibold">{notifUser.name}</span> {accion}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">{formatTime(notif.timestamp || new Date(notif.created_at).getTime())}</p>
+                  </div>
+                  {isNew && (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />
+                  )}
                 </div>
-                <div className="flex-1">
-                  <p className="text-gray-100">
-                    <span className="font-semibold">{notif.usuario}</span> {notif.accion}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">{notif.tiempo}</p>
-                </div>
-                {notif.nueva && (
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -1407,14 +2133,14 @@ export default function AylluIntegrado() {
                 className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-2 rounded-full font-bold hover:from-red-700 hover:to-orange-700 transition-all flex items-center space-x-2"
               >
                 <UserPlus size={18} />
-                <span>Conectar</span>
+                <span>Seguir</span>
               </button>
             )}
             {isConnectedUser && (
               <>
                 <button className="bg-gray-800 hover:bg-gray-700 px-6 py-2 rounded-full font-bold transition-colors flex items-center space-x-2">
                   <Check size={18} />
-                  <span>Conectados</span>
+                  <span>Siguiendo</span>
                 </button>
                 <button 
                   onClick={() => startConversation(selectedProfile.id)}
