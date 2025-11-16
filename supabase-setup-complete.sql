@@ -238,26 +238,31 @@ CREATE POLICY "System can create notifications"
 -- 5. TRIGGER PARA CREAR PERFIL AUTOMÁTICAMENTE
 -- ============================================
 
+-- Función para crear perfil automáticamente (SECURITY DEFINER bypasea RLS)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger 
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   -- Insertar usuario en la tabla users cuando se registra
-  INSERT INTO public.users (id, email, name, username, faculty, year, bio, avatar)
+  INSERT INTO public.users (id, email, name, username, faculty, year, bio, avatar, connections)
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-    LOWER(REPLACE(split_part(NEW.email, '@', 1), '.', '_')),
+    LOWER(REPLACE(REPLACE(split_part(NEW.email, '@', 1), '.', '_'), ' ', '_')),
     COALESCE(NEW.raw_user_meta_data->>'faculty', 'Sin especificar'),
     COALESCE(NEW.raw_user_meta_data->>'year', '1er año'),
     'Estudiante de San Marcos 🎓',
-    'https://ui-avatars.com/api/?name=' || COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)) || '&background=random&size=200'
+    'https://ui-avatars.com/api/?name=' || COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)) || '&background=random&size=200',
+    '{}'::UUID[]
   )
   ON CONFLICT (id) DO NOTHING;
   
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 -- Eliminar trigger si existe
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

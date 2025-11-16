@@ -35,8 +35,7 @@ export const authService = {
             name,
             faculty,
             year
-          },
-          emailRedirectTo: `${window.location.origin}/`
+          }
         }
       });
 
@@ -46,27 +45,9 @@ export const authService = {
         throw new Error('Error al crear usuario');
       }
 
-      // Crear perfil de usuario en la tabla users
-      const username = email.split('@')[0].toLowerCase().replace(/\./g, '_');
-      
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert([{
-          id: authData.user.id,
-          email,
-          name,
-          username,
-          faculty,
-          year,
-          bio: 'Estudiante de San Marcos 🎓',
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`,
-          connections: []
-        }]);
-
-      if (profileError) {
-        console.error('Error creando perfil:', profileError);
-        throw new Error('Error al crear perfil de usuario');
-      }
+      // El trigger automático crea el perfil en la tabla users
+      // Esperar un momento para que el trigger se ejecute
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Iniciar sesión automáticamente
       const { data: sessionData, error: sessionError } = await supabase.auth.signInWithPassword({
@@ -76,12 +57,56 @@ export const authService = {
 
       if (sessionError) throw sessionError;
 
-      // Obtener perfil completo
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authData.user.id)
-        .single();
+      // Obtener perfil completo con reintentos
+      let userData = null;
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      while (!userData && attempts < maxAttempts) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authData.user.id)
+          .maybeSingle();
+
+        if (data) {
+          userData = data;
+          break;
+        }
+
+        attempts++;
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      if (!userData) {
+        console.warn('Perfil no encontrado, creando manualmente...');
+        // Si el trigger falló, crear manualmente
+        const username = email.split('@')[0].toLowerCase().replace(/\./g, '_').replace(/ /g, '_');
+        
+        const { data: newProfile, error: insertError } = await supabase
+          .from('users')
+          .insert([{
+            id: authData.user.id,
+            email,
+            name,
+            username,
+            faculty,
+            year,
+            bio: 'Estudiante de San Marcos 🎓',
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=200`,
+            connections: []
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error insertando perfil:', insertError);
+        } else {
+          userData = newProfile;
+        }
+      }
 
       return {
         success: true,
