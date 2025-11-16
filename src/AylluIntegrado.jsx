@@ -412,7 +412,14 @@ export default function AylluIntegrado() {
         });
         setPantalla('app');
       } else {
-        setAuthError(result.error);
+        // Traducir errores al español
+        let errorMsg = result.error;
+        if (errorMsg.includes('Invalid login credentials') || errorMsg.includes('incorrectos')) {
+          errorMsg = '❌ Email o contraseña incorrectos. Por favor verifica tus credenciales.';
+        } else if (errorMsg.includes('Email not confirmed')) {
+          errorMsg = '✉️ Tu email aún no está confirmado. Revisa tu bandeja de entrada.';
+        }
+        setAuthError(errorMsg);
       }
     } catch (error) {
       console.error('Error login:', error);
@@ -463,10 +470,29 @@ export default function AylluIntegrado() {
           password: '',
           confirmPassword: ''
         });
-        setPantalla('app');
-        setAuthSuccess(result.message);
+        setAuthSuccess('¡Bienvenido a Ayllu! 🎉 Tu cuenta ha sido creada exitosamente');
+        setTimeout(() => {
+          setPantalla('app');
+        }, 1500);
       } else {
-        setAuthError(result.error);
+        // Traducir errores comunes al español
+        let errorMsg = result.error;
+        if (errorMsg.includes('Email not confirmed')) {
+          errorMsg = '✉️ Por favor verifica tu email. Hemos enviado un link de confirmación a tu correo institucional.';
+        } else if (errorMsg.includes('User already registered') || errorMsg.includes('already been registered')) {
+          setAuthError('Este email ya está registrado.');
+          // Cambiar automáticamente a login después de 2 segundos
+          setTimeout(() => {
+            setModoAuth('login');
+            setAuthError('');
+            setAuthSuccess('💡 Ya tienes una cuenta. Inicia sesión aquí');
+            setTimeout(() => setAuthSuccess(''), 3000);
+          }, 2000);
+          return;
+        } else if (errorMsg.includes('email_address_invalid')) {
+          errorMsg = 'El correo electrónico no es válido';
+        }
+        setAuthError(errorMsg);
       }
     } catch (error) {
       console.error('Error registro:', error);
@@ -506,11 +532,11 @@ export default function AylluIntegrado() {
 
       if (result.success) {
         setLastResetRequest(Date.now());
-        setAuthSuccess(result.message);
+        setAuthSuccess('📧 ¡Listo! Revisa tu bandeja de entrada. Te hemos enviado un link para restablecer tu contraseña.');
         setTimeout(() => {
           setShowResetPassword(false);
           setAuthSuccess('');
-        }, 3000);
+        }, 4000);
       } else {
         // Traducir mensajes de error de Supabase al español
         let errorMsg = result.error;
@@ -563,15 +589,26 @@ export default function AylluIntegrado() {
       const result = await authService.updatePassword(newPasswordData.password);
 
       if (result.success) {
-        setAuthSuccess(result.message);
+        setAuthSuccess('✅ Contraseña actualizada exitosamente. Redirigiendo al inicio de sesión...');
         setNewPasswordData({ password: '', confirmPassword: '' });
         
-        // Redirigir a login después de 2 segundos
+        // Obtener el email del usuario actual de la sesión
+        const { data: { user } } = await supabase.auth.getUser();
+        const userEmail = user?.email;
+        
+        // Cerrar sesión actual
+        await authService.signOut();
+        
+        // Redirigir a login después de 2 segundos con el email precargado
         setTimeout(() => {
           setResetPasswordMode(false);
           setPantalla('landing');
           setModoAuth('login');
+          if (userEmail) {
+            setFormData(prev => ({ ...prev, email: userEmail }));
+          }
           window.location.hash = ''; // Limpiar hash de la URL
+          setAuthSuccess('');
         }, 2000);
       } else {
         setAuthError(result.error);
