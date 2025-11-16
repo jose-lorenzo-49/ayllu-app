@@ -3,9 +3,27 @@ import { Heart, MessageCircle, Send, UserPlus, Search, Home, Users, Mail, User, 
 import { supabase } from './lib/supabase';
 import authService from './services/authService';
 
-const CARRERAS = [
-  "Derecho", "Medicina", "Ingeniería de Sistemas", "Administración",
-  "Psicología", "Economía", "Contabilidad", "Educación", "Letras", "Biología"
+const FACULTADES = [
+  "Medicina Humana",
+  "Farmacia y Bioquímica",
+  "Odontología",
+  "Medicina Veterinaria",
+  "Ciencias Biológicas",
+  "Derecho y Ciencia Política",
+  "Letras y Ciencias Humanas",
+  "Educación",
+  "Ciencias Sociales",
+  "Ciencias Económicas",
+  "Ciencias Contables",
+  "Ciencias Administrativas",
+  "Química e Ingeniería Química",
+  "Ingeniería Geológica, Minera, Metalúrgica y Geográfica",
+  "Ingeniería Industrial",
+  "Ingeniería Electrónica y Eléctrica",
+  "Ingeniería de Sistemas e Informática",
+  "Ciencias Físicas",
+  "Ciencias Matemáticas",
+  "Psicología"
 ];
 
 export default function AylluIntegrado() {
@@ -107,7 +125,7 @@ export default function AylluIntegrado() {
   const [formData, setFormData] = useState({
     email: '',
     nombre: '',
-    carrera: '',
+    facultad: '',
     password: '',
     confirmPassword: ''
   });
@@ -115,88 +133,122 @@ export default function AylluIntegrado() {
   const [users, setUsers] = useState([
     {
       id: 'demo-1',
-      name: 'María González',
-      username: 'maria.gonzalez',
-      email: 'maria@unmsm.edu.pe',
-      faculty: 'Derecho',
-      carrera: 'Derecho',
-      bio: 'Estudiante de Derecho apasionada por la justicia social 📚⚖️',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria',
-      coverImage: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800',
+      name: 'Valentina Rodríguez',
+      username: 'valentina.rodriguez',
+      email: 'valentina@unmsm.edu.pe',
+      faculty: 'Medicina Humana',
+      carrera: 'Medicina Humana',
+      bio: 'Futura médica cirujana 🩺 | Apasionada por la salud pública | Voluntaria en comunidades rurales',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
+      coverImage: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800',
       location: 'Lima, Perú',
-      website: 'mariagonzalez.pe',
-      followers: ['demo-2', 'demo-3', 'demo-5'],
-      following: ['demo-2', 'demo-4'],
-      connections: ['demo-2', 'demo-3', 'demo-5'],
+      website: '',
+      followers: ['demo-2', 'demo-3', 'demo-4', 'demo-5', 'demo-6', 'demo-7'],
+      following: ['demo-2', 'demo-3', 'demo-5'],
+      connections: ['demo-2', 'demo-3', 'demo-4', 'demo-5'],
       created_at: new Date('2024-01-15').toISOString()
     },
     {
       id: 'demo-2',
-      name: 'Carlos Ramírez',
-      username: 'carlos.ramirez',
-      email: 'carlos@unmsm.edu.pe',
-      faculty: 'Ingeniería de Sistemas',
-      carrera: 'Ingeniería de Sistemas',
-      bio: '💻 Desarrollador Full Stack | Tech enthusiast | UNMSM 🎓',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Carlos',
-      coverImage: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800',
+      name: 'Diego Castillo',
+      username: 'diego.castillo',
+      email: 'diego@unmsm.edu.pe',
+      faculty: 'Ingeniería de Sistemas e Informática',
+      carrera: 'Ingeniería de Sistemas e Informática',
+      bio: '💻 Full Stack Developer | IA & Machine Learning | Hackathons lover | UNMSM 🎓',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+      coverImage: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800',
       location: 'San Miguel, Lima',
-      website: 'github.com/carlosdev',
-      followers: ['demo-1', 'demo-3', 'demo-4'],
-      following: ['demo-1', 'demo-3', 'demo-5'],
+      website: 'github.com/diegodev',
+      followers: ['demo-1', 'demo-3', 'demo-4', 'demo-6'],
+      following: ['demo-1', 'demo-3', 'demo-5', 'demo-7'],
       connections: ['demo-1', 'demo-3', 'demo-4'],
       created_at: new Date('2024-02-20').toISOString()
     },
     {
       id: 'demo-3',
-      name: 'Ana Flores',
-      username: 'ana.flores',
-      email: 'ana@unmsm.edu.pe',
-      faculty: 'Medicina',
-      carrera: 'Medicina',
-      bio: 'Futura médica cirujana 🩺 | Voluntaria en hospitales | Amante de la ciencia',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ana',
-      coverImage: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800',
-      location: 'Pueblo Libre, Lima',
+      name: 'Camila Vargas',
+      username: 'camila.vargas',
+      email: 'camila@unmsm.edu.pe',
+      faculty: 'Psicología',
+      carrera: 'Psicología',
+      bio: '🧠 Psicóloga en formación | Salud mental es salud | Empatía y compasión 💚',
+      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
+      coverImage: 'https://images.unsplash.com/photo-1516302752625-fcc3c50ae61f?w=800',
+      location: 'Miraflores, Lima',
       website: '',
-      followers: ['demo-1', 'demo-2', 'demo-4', 'demo-5'],
-      following: ['demo-2', 'demo-4'],
-      connections: ['demo-1', 'demo-2', 'demo-4'],
+      followers: ['demo-1', 'demo-2', 'demo-4', 'demo-5', 'demo-7'],
+      following: ['demo-1', 'demo-2', 'demo-6'],
+      connections: ['demo-1', 'demo-2', 'demo-4', 'demo-5'],
       created_at: new Date('2024-03-10').toISOString()
     },
     {
       id: 'demo-4',
-      name: 'Luis Torres',
-      username: 'luis.torres',
-      email: 'luis@unmsm.edu.pe',
-      faculty: 'Administración',
-      carrera: 'Administración',
-      bio: 'Emprendedor | Business Student | Marketing Digital 📊',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Luis',
-      coverImage: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800',
-      location: 'Miraflores, Lima',
-      website: 'luistorres.com',
-      followers: ['demo-2', 'demo-3', 'demo-5'],
+      name: 'Andrés Palacios',
+      username: 'andres.palacios',
+      email: 'andres@unmsm.edu.pe',
+      faculty: 'Derecho y Ciencia Política',
+      carrera: 'Derecho y Ciencia Política',
+      bio: '⚖️ Estudiante de Derecho | Derechos Humanos | Justicia Social | Futuro abogado',
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
+      coverImage: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800',
+      location: 'San Isidro, Lima',
+      website: 'linkedin.com/in/andrespalacios',
+      followers: ['demo-1', 'demo-2', 'demo-3', 'demo-6'],
       following: ['demo-1', 'demo-3', 'demo-5'],
-      connections: ['demo-2', 'demo-3', 'demo-5'],
+      connections: ['demo-1', 'demo-3', 'demo-6'],
       created_at: new Date('2024-04-05').toISOString()
     },
     {
       id: 'demo-5',
-      name: 'Sofia Mendoza',
-      username: 'sofia.mendoza',
-      email: 'sofia@unmsm.edu.pe',
-      faculty: 'Psicología',
-      carrera: 'Psicología',
-      bio: '🧠 Psicóloga en formación | Salud mental matters | UNMSM Pride 💚❤️',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sofia',
-      coverImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800',
-      location: 'Jesús María, Lima',
-      website: '',
-      followers: ['demo-1', 'demo-4'],
-      following: ['demo-1', 'demo-2', 'demo-3', 'demo-4'],
-      connections: ['demo-1', 'demo-4'],
+      name: 'Isabella Jiménez',
+      username: 'isabella.jimenez',
+      email: 'isabella@unmsm.edu.pe',
+      faculty: 'Ciencias Administrativas',
+      carrera: 'Ciencias Administrativas',
+      bio: '💼 Emprendedora | Marketing Digital | Business Strategy | Innovación empresarial',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
+      coverImage: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800',
+      location: 'La Molina, Lima',
+      website: 'isabellajimenez.com',
+      followers: ['demo-1', 'demo-3', 'demo-4', 'demo-7'],
+      following: ['demo-1', 'demo-2', 'demo-3', 'demo-6'],
+      connections: ['demo-1', 'demo-3', 'demo-7'],
       created_at: new Date('2024-05-12').toISOString()
+    },
+    {
+      id: 'demo-6',
+      name: 'Matías Herrera',
+      username: 'matias.herrera',
+      email: 'matias@unmsm.edu.pe',
+      faculty: 'Ciencias Matemáticas',
+      carrera: 'Ciencias Matemáticas',
+      bio: '🔢 Matemático | Data Science | Análisis de datos | Apasionado por los números',
+      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400',
+      coverImage: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=800',
+      location: 'Pueblo Libre, Lima',
+      website: '',
+      followers: ['demo-2', 'demo-4', 'demo-5'],
+      following: ['demo-2', 'demo-3', 'demo-7'],
+      connections: ['demo-4', 'demo-5'],
+      created_at: new Date('2024-06-18').toISOString()
+    },
+    {
+      id: 'demo-7',
+      name: 'Fernanda Quispe',
+      username: 'fernanda.quispe',
+      email: 'fernanda@unmsm.edu.pe',
+      faculty: 'Letras y Ciencias Humanas',
+      carrera: 'Letras y Ciencias Humanas',
+      bio: '📚 Literatura & Filosofía | Escritora | Amante de las historias | Cultura peruana 🇵🇪',
+      avatar: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400',
+      coverImage: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=800',
+      location: 'Barranco, Lima',
+      website: 'fernandaescribe.com',
+      followers: ['demo-1', 'demo-3', 'demo-5'],
+      following: ['demo-2', 'demo-3', 'demo-6'],
+      connections: ['demo-3', 'demo-5'],
+      created_at: new Date('2024-07-22').toISOString()
     }
   ]);
 
@@ -281,50 +333,7 @@ export default function AylluIntegrado() {
     }
   ]);
 
-  const [conversations, setConversations] = useState([
-    {
-      id: 'conv-1',
-      withUserId: 'demo-2',
-      participants: ['demo-1', 'demo-2'],
-      messages: [
-        { senderId: 'demo-2', text: 'Hola María! Vi tu post sobre Derecho Civil, muy interesante', timestamp: Date.now() - 86400000 },
-        { senderId: 'demo-1', text: 'Gracias Carlos! Me encanta esta materia', timestamp: Date.now() - 82800000 },
-        { senderId: 'demo-2', text: 'Se nota tu pasión por lo que estudias 👏', timestamp: Date.now() - 79200000 },
-        { senderId: 'demo-1', text: 'Y tú cómo vas con tus proyectos de programación?', timestamp: Date.now() - 75600000 },
-        { senderId: 'demo-2', text: 'Bastante bien! Ahora estoy con React, es genial', timestamp: Date.now() - 72000000 }
-      ],
-      lastMessage: Date.now() - 72000000
-    },
-    {
-      id: 'conv-2',
-      withUserId: 'demo-3',
-      participants: ['demo-1', 'demo-3'],
-      messages: [
-        { senderId: 'demo-3', text: 'María! Cómo estás? Tiempo sin hablar', timestamp: Date.now() - 172800000 },
-        { senderId: 'demo-1', text: 'Ana! Todo bien, full con los estudios jaja', timestamp: Date.now() - 169200000 },
-        { senderId: 'demo-3', text: 'Te entiendo perfectamente! La medicina me tiene absorbida', timestamp: Date.now() - 165600000 },
-        { senderId: 'demo-1', text: 'Pero vale la pena, vas a ser una excelente doctora 🩺', timestamp: Date.now() - 162000000 },
-        { senderId: 'demo-3', text: 'Aww gracias! Tú también serás una gran abogada', timestamp: Date.now() - 158400000 },
-        { senderId: 'demo-1', text: 'Gracias amiga! 💚', timestamp: Date.now() - 154800000 }
-      ],
-      lastMessage: Date.now() - 154800000
-    },
-    {
-      id: 'conv-3',
-      withUserId: 'demo-4',
-      participants: ['demo-2', 'demo-4'],
-      messages: [
-        { senderId: 'demo-4', text: 'Carlos, me ayudas con un tema de programación?', timestamp: Date.now() - 43200000 },
-        { senderId: 'demo-2', text: 'Claro Luis! Dime en qué te puedo ayudar', timestamp: Date.now() - 39600000 },
-        { senderId: 'demo-4', text: 'Necesito hacer una página web para mi proyecto de marketing', timestamp: Date.now() - 36000000 },
-        { senderId: 'demo-2', text: 'Perfecto! Podemos usar HTML, CSS y JS básico', timestamp: Date.now() - 32400000 },
-        { senderId: 'demo-4', text: 'Genial! Cuándo podemos juntarnos?', timestamp: Date.now() - 28800000 },
-        { senderId: 'demo-2', text: 'Este viernes estoy libre, te parece?', timestamp: Date.now() - 25200000 },
-        { senderId: 'demo-4', text: 'Perfecto! Nos vemos el viernes entonces 👍', timestamp: Date.now() - 21600000 }
-      ],
-      lastMessage: Date.now() - 21600000
-    }
-  ]);
+  const [conversations, setConversations] = useState([]);
   const [notificaciones, setNotificaciones] = useState([
     {
       id: 'notif-1',
@@ -434,7 +443,7 @@ export default function AylluIntegrado() {
       setAuthError('Las contraseñas no coinciden');
       return;
     }
-    if (!formData.nombre || !formData.carrera || !formData.email) {
+    if (!formData.nombre || !formData.facultad || !formData.email) {
       setAuthError('Por favor completa todos los campos');
       return;
     }
@@ -456,7 +465,7 @@ export default function AylluIntegrado() {
         email: formData.email.trim(),
         password: formData.password,
         name: formData.nombre.trim(),
-        faculty: formData.carrera
+        faculty: formData.facultad
       });
 
       if (result.success) {
@@ -968,7 +977,7 @@ export default function AylluIntegrado() {
       if (convIndex !== -1) {
         const updated = [...conversations];
         updated[convIndex].messages.push({
-          from: currentUser.id,
+          senderId: currentUser.id,
           text: newMessage.trim(),
           timestamp: new Date(data.created_at).getTime()
         });
@@ -998,7 +1007,7 @@ export default function AylluIntegrado() {
           .order('created_at', { ascending: true });
 
         const formattedMessages = messages?.map(m => ({
-          from: m.sender_id,
+          senderId: m.sender_id,
           text: m.text,
           timestamp: new Date(m.created_at).getTime()
         })) || [];
@@ -1153,8 +1162,8 @@ export default function AylluIntegrado() {
           const messages = (conv.messages || [])
             .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
             .map(msg => ({
-              from: msg.sender_id,
-              text: msg.content,
+              senderId: msg.sender_id,
+              text: msg.content || msg.text,
               timestamp: new Date(msg.created_at).getTime()
             }));
           
@@ -1536,16 +1545,16 @@ export default function AylluIntegrado() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white mb-2">Carrera</label>
+                    <label className="block text-sm font-medium text-white mb-2">Facultad</label>
                     <select
-                      value={formData.carrera}
-                      onChange={(e) => setFormData({...formData, carrera: e.target.value})}
+                      value={formData.facultad}
+                      onChange={(e) => setFormData({...formData, facultad: e.target.value})}
                       className="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       disabled={authLoading}
                     >
-                      <option value="" className="text-gray-900">Selecciona tu carrera</option>
-                      {CARRERAS.map(carrera => (
-                        <option key={carrera} value={carrera} className="text-gray-900">{carrera}</option>
+                      <option value="" className="text-gray-900">Selecciona tu facultad</option>
+                      {FACULTADES.map(facultad => (
+                        <option key={facultad} value={facultad} className="text-gray-900">{facultad}</option>
                       ))}
                     </select>
                   </div>
