@@ -637,43 +637,21 @@ export default function AylluIntegrado() {
     }
   };
 
-  // Función para filtrar posts según el tab seleccionado
+  // Función para filtrar posts - Feed único con todos los posts
   const getFilteredPosts = () => {
-    let filtered = [...allPosts];
-    
-    if (feedFilter === 'trending') {
-      // 🔥 TRENDING: SOLO confesiones anónimas, visibles para TODOS
-      // Usuario que postea NO se muestra (anónimo total)
-      filtered = filtered
-        .filter(post => post.isAnonymous === true || post.userId === 'anonymous')
-        .sort((a, b) => {
-          const scoreA = (a.likes?.length || 0) + (a.comments?.length || 0);
-          const scoreB = (b.likes?.length || 0) + (b.comments?.length || 0);
-          return scoreB - scoreA;
-        });
-    } else if (feedFilter === 'myConnections' && currentUser) {
-      // 👥 MIS CONEXIONES: SOLO posts de usuarios conectados (RESTRICTIVO)
-      // Excluir posts anónimos completamente
-      filtered = filtered.filter(post => {
-        // No mostrar posts anónimos en esta sección
-        if (post.isAnonymous === true || post.userId === 'anonymous') return false;
-        // Solo mostrar posts de usuarios en mi lista de conexiones
-        return currentUser.connections.includes(post.userId);
-      });
-    } else if (feedFilter === 'all') {
-      // 🏛️ TODA LA U: TODOS los posts normales (NO anónimos)
-      // Visible para TODOS, ordenado por algoritmo de engagement
-      filtered = filtered
-        .filter(post => !(post.isAnonymous === true || post.userId === 'anonymous')) // Excluir anónimos
-        .sort((a, b) => {
-          // Algoritmo: likes × 2 + comentarios × 3
-          const scoreA = (a.likes?.length || 0) * 2 + (a.comments?.length || 0) * 3;
-          const scoreB = (b.likes?.length || 0) * 2 + (b.comments?.length || 0) * 3;
-          return scoreB - scoreA;
-        });
-    }
-    
-    return filtered;
+    // Mostrar TODOS los posts (normales y anónimos)
+    // Ordenados por engagement para maximizar relevancia
+    return [...allPosts].sort((a, b) => {
+      // Algoritmo: likes × 2 + comentarios × 3 + bonus reciente
+      const now = Date.now();
+      const ageA = (now - a.timestamp) / (1000 * 60 * 60); // horas
+      const ageB = (now - b.timestamp) / (1000 * 60 * 60);
+      
+      const scoreA = (a.likes?.length || 0) * 2 + (a.comments?.length || 0) * 3 - (ageA * 0.1);
+      const scoreB = (b.likes?.length || 0) * 2 + (b.comments?.length || 0) * 3 - (ageB * 0.1);
+      
+      return scoreB - scoreA;
+    });
   };
 
   // Función para calcular ranking de facultades
@@ -1751,40 +1729,6 @@ export default function AylluIntegrado() {
     
     return (
       <div>
-        {/* Tabs de filtro */}
-        <div className="bg-gray-900 rounded-2xl mb-4 p-2 flex space-x-2">
-          <button
-            onClick={() => setFeedFilter('all')}
-            className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
-              feedFilter === 'all' 
-                ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
-            }`}
-          >
-            🏛️ Toda la U
-          </button>
-          <button
-            onClick={() => setFeedFilter('myConnections')}
-            className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
-              feedFilter === 'myConnections' 
-                ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
-            }`}
-          >
-            👥 Mis Conexiones
-          </button>
-          <button
-            onClick={() => setFeedFilter('trending')}
-            className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
-              feedFilter === 'trending' 
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
-            }`}
-          >
-            💭 Confesiones
-          </button>
-        </div>
-
         {/* Formulario para crear posts */}
         <div className="bg-gray-900 p-4 rounded-2xl mb-4">
           <div className="flex space-x-3">
@@ -2232,21 +2176,6 @@ export default function AylluIntegrado() {
       const isNew = notifs.some(n => n.read === false || n.nueva === true);
       const count = notifs.length;
       
-      let accion = '';
-      if (notifType === 'like') {
-        accion = count > 1 
-          ? `y ${count - 1} persona${count > 2 ? 's' : ''} más dieron like a tu publicación`
-          : 'le gustó tu publicación';
-      } else if (notifType === 'comment' || notifType === 'comentario') {
-        accion = count > 1
-          ? `y ${count - 1} persona${count > 2 ? 's' : ''} más comentaron tu publicación`
-          : 'comentó tu publicación';
-      } else if (notifType === 'follow' || notifType === 'conexion') {
-        accion = 'comenzó a seguirte';
-      } else {
-        accion = 'interactuó contigo';
-      }
-
       // Obtener datos del usuario desde fromUser (Supabase) o desde getUserById (fallback)
       const notifUser = firstNotif.fromUser || getUserById(firstNotif.userId);
       
@@ -2255,48 +2184,73 @@ export default function AylluIntegrado() {
         return null;
       }
       
+      let accion = '';
+      let icon = null;
+      let colorClass = '';
+      
+      if (notifType === 'like') {
+        accion = count > 1 
+          ? `le dio like a tu publicación`
+          : 'le dio like a tu publicación';
+        icon = <Heart className="w-3.5 h-3.5 text-white fill-white" />;
+        colorClass = 'bg-gradient-to-br from-red-500 to-pink-500';
+      } else if (notifType === 'comment' || notifType === 'comentario') {
+        accion = count > 1
+          ? `comentó tu publicación`
+          : 'comentó tu publicación';
+        icon = <MessageCircle className="w-3.5 h-3.5 text-white" />;
+        colorClass = 'bg-gradient-to-br from-green-500 to-emerald-500';
+      } else if (notifType === 'follow' || notifType === 'conexion') {
+        accion = 'comenzó a seguirte';
+        icon = <UserPlus className="w-3.5 h-3.5 text-white" />;
+        colorClass = 'bg-gradient-to-br from-blue-500 to-cyan-500';
+      } else {
+        accion = 'interactuó contigo';
+        icon = <Bell className="w-3.5 h-3.5 text-white" />;
+        colorClass = 'bg-gradient-to-br from-purple-500 to-violet-500';
+      }
+      
       return (
         <div
           key={firstNotif.id}
           onClick={() => {
             notifs.forEach(n => marcarNotificacionLeida(n.id));
           }}
-          className={`p-4 border-b border-gray-800 last:border-b-0 cursor-pointer transition-all hover:bg-gray-800/50 ${
-            isNew ? 'bg-gradient-to-r from-blue-900/20 to-purple-900/20' : ''
+          className={`p-4 border-b border-gray-800 last:border-b-0 cursor-pointer transition-all hover:bg-gray-800/80 ${
+            isNew ? 'bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-l-4 border-l-blue-500' : ''
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <img 
                 src={notifUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(notifUser.name)}&background=random`} 
                 alt={notifUser.name} 
-                className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-700"
+                className="w-14 h-14 rounded-full object-cover ring-2 ring-gray-700 hover:ring-orange-500 transition-all"
               />
-              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center shadow-lg ${
-                notifType === 'like' ? 'bg-red-500' :
-                (notifType === 'follow' || notifType === 'conexion') ? 'bg-blue-500' : 'bg-green-500'
-              }`}>
-                {notifType === 'like' && <Heart className="w-3 h-3 text-white fill-white" />}
-                {(notifType === 'follow' || notifType === 'conexion') && <UserPlus className="w-3 h-3 text-white" />}
-                {(notifType === 'comment' || notifType === 'comentario') && <MessageCircle className="w-3 h-3 text-white" />}
+              <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center shadow-lg ${colorClass}`}>
+                {icon}
               </div>
             </div>
-            <div className="flex-1">
-              <p className="text-gray-100 text-sm leading-relaxed">
-                <span className="font-semibold text-white">{notifUser.name}</span>
-                {count > 1 && <span className="text-gray-400"> y {count - 1} más</span>}
-                {' '}{accion}
-              </p>
-              {notifUser.faculty && (
-                <p className="text-xs text-orange-500 mt-0.5">{notifUser.faculty}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">{formatTime(firstNotif.timestamp || new Date(firstNotif.created_at).getTime())}</p>
-            </div>
-            {isNew && (
-              <div className="flex items-center">
-                <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-gray-100 text-sm leading-relaxed">
+                    <span className="font-bold text-white">{notifUser.name}</span>
+                    {count > 1 && <span className="text-gray-400 font-medium"> y {count - 1} más</span>}
+                    <span className="text-gray-300"> {accion}</span>
+                  </p>
+                  {notifUser.faculty && (
+                    <p className="text-xs text-orange-400 mt-1 font-medium">🏛️ {notifUser.faculty}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1.5">{formatTime(firstNotif.timestamp || new Date(firstNotif.created_at).getTime())}</p>
+                </div>
+                {isNew && (
+                  <div className="flex-shrink-0">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       );
