@@ -383,7 +383,7 @@ export default function AylluIntegrado() {
   ]);
 
   const [activeView, setActiveView] = useState('feed');
-  const [feedFilter, setFeedFilter] = useState('all'); // 'all', 'myFaculty', 'trending'
+  const [feedFilter, setFeedFilter] = useState('all'); // 'all', 'myConnections', 'trending'
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newPost, setNewPost] = useState('');
@@ -631,19 +631,30 @@ export default function AylluIntegrado() {
   const getFilteredPosts = () => {
     let filtered = [...allPosts];
     
-    if (feedFilter === 'myFaculty' && currentUser) {
+    if (feedFilter === 'all') {
+      // Toda la U: Algoritmo que prioriza posts con más interacciones
+      filtered = filtered
+        .filter(post => !post.isAnonymous && post.userId !== 'anonymous') // Excluir anónimos
+        .sort((a, b) => {
+          const scoreA = (a.likes?.length || 0) * 2 + (a.comments?.length || 0) * 3;
+          const scoreB = (b.likes?.length || 0) * 2 + (b.comments?.length || 0) * 3;
+          return scoreB - scoreA;
+        });
+    } else if (feedFilter === 'myConnections' && currentUser) {
       filtered = filtered.filter(post => {
-        if (post.userId === 'anonymous') return true;
-        const postUser = getUserById(post.userId);
-        return postUser?.faculty === currentUser.faculty;
+        if (post.isAnonymous || post.userId === 'anonymous') return false; // Excluir anónimos
+        // Solo mostrar posts de usuarios conectados
+        return currentUser.connections.includes(post.userId);
       });
     } else if (feedFilter === 'trending') {
-      // Ordenar por engagement (likes + comments)
-      filtered = filtered.sort((a, b) => {
-        const scoreA = (a.likes?.length || 0) + (a.comments?.length || 0);
-        const scoreB = (b.likes?.length || 0) + (b.comments?.length || 0);
-        return scoreB - scoreA;
-      });
+      // Trending: Incluir SOLO posts anónimos + ordenar por engagement
+      filtered = filtered
+        .filter(post => post.isAnonymous || post.userId === 'anonymous')
+        .sort((a, b) => {
+          const scoreA = (a.likes?.length || 0) + (a.comments?.length || 0);
+          const scoreB = (b.likes?.length || 0) + (b.comments?.length || 0);
+          return scoreB - scoreA;
+        });
     }
     
     return filtered;
@@ -1094,7 +1105,7 @@ export default function AylluIntegrado() {
         }]);
         setSelectedConversation(newConv.id);
       }
-      setActiveView('messages');
+      // Mensajes eliminados - ya no se redirige
     } catch (error) {
       console.error('Error al iniciar conversación:', error);
     }
@@ -1691,14 +1702,14 @@ export default function AylluIntegrado() {
             🏛️ Toda la U
           </button>
           <button
-            onClick={() => setFeedFilter('myFaculty')}
+            onClick={() => setFeedFilter('myConnections')}
             className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
-              feedFilter === 'myFaculty' 
+              feedFilter === 'myConnections' 
                 ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white' 
                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
-            🎓 Mi Facultad
+            👥 Mis Conexiones
           </button>
           <button
             onClick={() => setFeedFilter('trending')}
@@ -1720,7 +1731,7 @@ export default function AylluIntegrado() {
               <textarea
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
-                placeholder={isAnonymous ? "Comparte tu confesión anónimamente..." : "¿Qué quieres compartir con tus conexiones?"}
+                placeholder="¿Qué quieres compartir con tus conexiones?"
                 className="w-full bg-gray-800 rounded-xl p-3 outline-none resize-none text-gray-100"
                 rows="3"
               />
@@ -1745,15 +1756,6 @@ export default function AylluIntegrado() {
                       onChange={handleImageSelect}
                       className="hidden"
                     />
-                  </label>
-                  <label className="flex items-center space-x-2 cursor-pointer text-gray-400 hover:text-purple-400 transition-colors px-3 py-2 hover:bg-gray-800 rounded-full">
-                    <input
-                      type="checkbox"
-                      checked={isAnonymous}
-                      onChange={(e) => setIsAnonymous(e.target.checked)}
-                      className="rounded"
-                    />
-                    <span className="text-sm">💭 Anónimo</span>
                   </label>
                 </div>
                 <button 
@@ -2001,13 +2003,6 @@ export default function AylluIntegrado() {
                   <div className="text-sm text-gray-500">{user.year}</div>
                 </div>
               </div>
-              <button 
-                onClick={() => startConversation(user.id)}
-                className="w-full mt-3 bg-gray-800 hover:bg-gray-700 py-2 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
-              >
-                <MessageCircle size={18} />
-                <span>Mensaje</span>
-              </button>
             </div>
           ))}
         </div>
@@ -2293,19 +2288,10 @@ export default function AylluIntegrado() {
               </button>
             )}
             {isConnectedUser && (
-              <>
-                <button className="bg-gray-800 hover:bg-gray-700 px-6 py-2 rounded-full font-bold transition-colors flex items-center space-x-2">
-                  <Check size={18} />
-                  <span>Siguiendo</span>
-                </button>
-                <button 
-                  onClick={() => startConversation(selectedProfile.id)}
-                  className="bg-gray-800 hover:bg-gray-700 px-6 py-2 rounded-full font-bold transition-colors flex items-center space-x-2"
-                >
-                  <MessageCircle size={18} />
-                  <span>Mensaje</span>
-                </button>
-              </>
+              <button className="bg-gray-800 hover:bg-gray-700 px-6 py-2 rounded-full font-bold transition-colors flex items-center space-x-2">
+                <Check size={18} />
+                <span>Siguiendo</span>
+              </button>
             )}
           </div>
         </div>
@@ -2497,7 +2483,6 @@ export default function AylluIntegrado() {
                 { icon: Home, label: 'Inicio', view: 'feed' },
                 { icon: Search, label: 'Buscar', view: 'search' },
                 { icon: Users, label: 'Conexiones', view: 'connections' },
-                { icon: Mail, label: 'Mensajes', view: 'messages' },
                 { icon: Bell, label: 'Notificaciones', view: 'notificaciones' },
                 { icon: User, label: 'Perfil', view: 'profile' }
               ].map((item) => (
@@ -2542,7 +2527,6 @@ export default function AylluIntegrado() {
             {activeView === 'feed' && renderFeed()}
             {activeView === 'connections' && renderConnections()}
             {activeView === 'search' && renderSearch()}
-            {activeView === 'messages' && renderMessages()}
             {activeView === 'notificaciones' && renderNotificaciones()}
             {activeView === 'profile' && renderProfile()}
             {activeView === 'viewProfile' && renderViewProfile()}
@@ -2557,7 +2541,7 @@ export default function AylluIntegrado() {
             { icon: Home, view: 'feed' },
             { icon: Search, view: 'search' },
             { icon: Users, view: 'connections' },
-            { icon: Mail, view: 'messages' },
+            { icon: Bell, view: 'notificaciones' },
             { icon: User, view: 'profile' }
           ].map((item) => (
             <button
