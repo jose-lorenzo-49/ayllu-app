@@ -1900,9 +1900,9 @@ export default function AylluIntegrado() {
                         onDoubleClick={() => {
                           if (!post.likes.includes(currentUser.id)) {
                             likePost(post.id);
-                            setLikeAnimation({...likeAnimation, [post.id]: true});
+                            setLikeAnimation(prev => ({...prev, [post.id]: true}));
                             setTimeout(() => {
-                              setLikeAnimation({...likeAnimation, [post.id]: false});
+                              setLikeAnimation(prev => ({...prev, [post.id]: false}));
                             }, 1000);
                           }
                         }}
