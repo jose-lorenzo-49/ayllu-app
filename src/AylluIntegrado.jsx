@@ -40,7 +40,6 @@ export default function AylluIntegrado() {
 
   // Cargar datos de Supabase al iniciar
   useEffect(() => {
-    checkAuthState();
     checkResetPasswordToken();
   }, []);
 
@@ -51,9 +50,12 @@ export default function AylluIntegrado() {
     const type = hashParams.get('type');
     
     if (accessToken && type === 'recovery') {
-      // Usuario viene del link de reset password
+      // Usuario viene del link de reset password - NO hacer auto-login
       setResetPasswordMode(true);
       setPantalla('reset-password');
+    } else {
+      // Solo verificar auth si NO viene del reset
+      checkAuthState();
     }
   };
 
@@ -598,26 +600,19 @@ export default function AylluIntegrado() {
       const result = await authService.updatePassword(newPasswordData.password);
 
       if (result.success) {
-        setAuthSuccess('✅ Contraseña actualizada exitosamente. Redirigiendo al inicio de sesión...');
+        setAuthSuccess('✅ Contraseña actualizada exitosamente. Ya puedes iniciar sesión.');
         setNewPasswordData({ password: '', confirmPassword: '' });
         
-        // Obtener el email del usuario actual de la sesión
-        const { data: { user } } = await supabase.auth.getUser();
-        const userEmail = user?.email;
+        // Limpiar el hash de la URL
+        window.location.hash = '';
         
-        // Cerrar sesión actual
-        await authService.signOut();
-        
-        // Redirigir a login después de 2 segundos con el email precargado
+        // Redirigir a login después de 2 segundos
         setTimeout(() => {
           setResetPasswordMode(false);
           setPantalla('landing');
           setModoAuth('login');
-          if (userEmail) {
-            setFormData(prev => ({ ...prev, email: userEmail }));
-          }
-          window.location.hash = ''; // Limpiar hash de la URL
           setAuthSuccess('');
+          setAuthError('');
         }, 2000);
       } else {
         setAuthError(result.error);
