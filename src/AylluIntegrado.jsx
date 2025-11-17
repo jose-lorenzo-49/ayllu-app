@@ -124,6 +124,13 @@ export default function AylluIntegrado() {
       console.log('Error cargando datos:', error);
     }
   };
+
+  // useEffect para actualizar contador de notificaciones no leídas
+  useEffect(() => {
+    const unread = notificaciones.filter(n => n.read === false || n.nueva === true).length;
+    setUnreadCount(unread);
+  }, [notificaciones]);
+
   const [formData, setFormData] = useState({
     email: '',
     nombre: '',
@@ -381,6 +388,7 @@ export default function AylluIntegrado() {
       created_at: new Date(Date.now() - 21600000).toISOString()
     }
   ]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [activeView, setActiveView] = useState('feed');
   const [feedFilter, setFeedFilter] = useState('all'); // 'all', 'myConnections', 'trending'
@@ -396,6 +404,7 @@ export default function AylluIntegrado() {
   const [newComment, setNewComment] = useState({});
   const [imagePreview, setImagePreview] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [likeAnimation, setLikeAnimation] = useState({});
 
   const handleLogin = async () => {
     if (!formData.email?.trim() || !formData.password?.trim()) {
@@ -896,13 +905,44 @@ export default function AylluIntegrado() {
     }
   };
 
-  const sharePost = (postId) => {
+  const sharePost = async (postId) => {
     const post = allPosts.find(p => p.id === postId);
-    if (post) {
-      const shareText = `${post.content}\n\n- Compartido desde Ayllu UNMSM`;
-      navigator.clipboard.writeText(shareText);
-      alert('¡Link copiado al portapapeles!');
+    if (!post) return;
+
+    const author = post.isAnonymous || post.userId === 'anonymous' 
+      ? 'Confesión Anónima' 
+      : getUserById(post.userId)?.name || 'Usuario';
+    
+    const shareText = `📱 "${post.content}"\n\n👤 ${author}\n🎓 Ayllu UNMSM - Red Social Sanmarquina\n🔗 ${window.location.origin}`;
+    
+    // Usar Web Share API si está disponible (móviles)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Ayllu UNMSM',
+          text: shareText,
+          url: window.location.origin
+        });
+      } catch (err) {
+        // Usuario canceló o error
+        if (err.name !== 'AbortError') {
+          copyToClipboard(shareText);
+        }
+      }
+    } else {
+      copyToClipboard(shareText);
     }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      // Mostrar toast/notificación
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-full shadow-lg z-50 animate-bounce';
+      toast.textContent = '✅ Copiado al portapapeles';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    });
   };
 
   const handleImageSelect = async (e) => {
@@ -1819,7 +1859,11 @@ export default function AylluIntegrado() {
                         setActiveView('viewProfile');
                       }
                     }}
-                    className={`w-12 h-12 rounded-full object-cover flex-shrink-0 ${!post.isAnonymous && post.userId !== 'anonymous' ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                    className={`w-12 h-12 rounded-full object-cover flex-shrink-0 ${
+                      !post.isAnonymous && post.userId !== 'anonymous' 
+                        ? 'cursor-pointer hover:opacity-80 transition-opacity' 
+                        : ''
+                    }`}
                   />
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
@@ -1831,11 +1875,19 @@ export default function AylluIntegrado() {
                               setActiveView('viewProfile');
                             }
                           }}
-                          className={`font-bold ${!post.isAnonymous && post.userId !== 'anonymous' ? 'hover:underline cursor-pointer' : 'text-purple-400'}`}
+                          className={`font-bold ${
+                            !post.isAnonymous && post.userId !== 'anonymous' 
+                              ? 'hover:underline cursor-pointer' 
+                              : 'text-purple-400'
+                          }`}
                         >
                           {author.name}
                         </div>
-                        <div className={`text-sm ${post.isAnonymous || post.userId === 'anonymous' ? 'text-purple-400' : 'text-orange-500'}`}>
+                        <div className={`text-sm ${
+                          post.isAnonymous || post.userId === 'anonymous' 
+                            ? 'text-purple-400' 
+                            : 'text-orange-500'
+                        }`}>
                           {author.faculty}
                         </div>
                       </div>
@@ -1843,7 +1895,33 @@ export default function AylluIntegrado() {
                     </div>
                     <p className="mt-3 text-gray-100 leading-relaxed">{post.content}</p>
                     {post.image && (
-                      <img src={post.image} alt="Post" className="mt-3 rounded-lg w-full max-h-[600px] object-contain bg-gray-800" />
+                      <div 
+                        className="relative mt-3 group cursor-pointer"
+                        onDoubleClick={() => {
+                          if (!post.likes.includes(currentUser.id)) {
+                            likePost(post.id);
+                            setLikeAnimation({...likeAnimation, [post.id]: true});
+                            setTimeout(() => {
+                              setLikeAnimation({...likeAnimation, [post.id]: false});
+                            }, 1000);
+                          }
+                        }}
+                      >
+                        <img 
+                          src={post.image} 
+                          alt="Post" 
+                          className="rounded-lg w-full max-h-[600px] object-contain bg-gray-800" 
+                        />
+                        {likeAnimation[post.id] && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <Heart 
+                              size={80} 
+                              className="text-red-500 fill-red-500 animate-ping" 
+                              style={{ animation: 'ping 0.5s cubic-bezier(0, 0, 0.2, 1)' }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     )}
                     
                     <div className="flex items-center space-x-6 mt-4">
@@ -2122,53 +2200,109 @@ export default function AylluIntegrado() {
   };
 
   const renderNotificaciones = () => {
+    // Agrupar notificaciones por tipo y post
+    const groupedNotifs = {};
+    notificaciones.forEach(notif => {
+      const key = `${notif.type}-${notif.postId || 'general'}`;
+      if (!groupedNotifs[key]) {
+        groupedNotifs[key] = [];
+      }
+      groupedNotifs[key].push(notif);
+    });
+
+    const renderGroupedNotif = (notifs) => {
+      const firstNotif = notifs[0];
+      const notifType = firstNotif.type || firstNotif.tipo;
+      const isNew = notifs.some(n => n.read === false || n.nueva === true);
+      const count = notifs.length;
+      
+      let accion = '';
+      if (notifType === 'like') {
+        accion = count > 1 
+          ? `y ${count - 1} persona${count > 2 ? 's' : ''} más dieron like a tu publicación`
+          : 'le gustó tu publicación';
+      } else if (notifType === 'comment' || notifType === 'comentario') {
+        accion = count > 1
+          ? `y ${count - 1} persona${count > 2 ? 's' : ''} más comentaron tu publicación`
+          : 'comentó tu publicación';
+      } else if (notifType === 'follow' || notifType === 'conexion') {
+        accion = 'comenzó a seguirte';
+      } else {
+        accion = 'interactuó contigo';
+      }
+
+      const notifUser = getUserById(firstNotif.userId);
+      
+      return (
+        <div
+          key={firstNotif.id}
+          onClick={() => {
+            notifs.forEach(n => marcarNotificacionLeida(n.id));
+          }}
+          className={`p-4 border-b border-gray-800 last:border-b-0 cursor-pointer transition-all hover:bg-gray-800/50 ${
+            isNew ? 'bg-gradient-to-r from-blue-900/20 to-purple-900/20' : ''
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div className="relative">
+              <img 
+                src={notifUser.avatar} 
+                alt={notifUser.name} 
+                className="w-12 h-12 rounded-full object-cover"
+              />
+              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ${
+                notifType === 'like' ? 'bg-red-500' :
+                (notifType === 'follow' || notifType === 'conexion') ? 'bg-blue-500' : 'bg-green-500'
+              }`}>
+                {notifType === 'like' && <Heart className="w-3 h-3 text-white fill-white" />}
+                {(notifType === 'follow' || notifType === 'conexion') && <UserPlus className="w-3 h-3 text-white" />}
+                {(notifType === 'comment' || notifType === 'comentario') && <MessageCircle className="w-3 h-3 text-white" />}
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="text-gray-100 text-sm">
+                <span className="font-semibold">{notifUser.name}</span> {accion}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">{formatTime(firstNotif.timestamp || new Date(firstNotif.created_at).getTime())}</p>
+            </div>
+            {isNew && (
+              <div className="flex items-center">
+                <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div>
-        <h2 className="text-2xl font-bold mb-4">Notificaciones</h2>
-        <div className="bg-gray-900 rounded-2xl overflow-hidden">
-          {notificaciones.map(notif => {
-            const notifUser = getUserById(notif.userId);
-            const notifType = notif.type || notif.tipo;
-            const isNew = notif.read === false || notif.nueva === true;
-            
-            let accion = '';
-            if (notifType === 'like') accion = 'le gustó tu publicación';
-            else if (notifType === 'comment' || notifType === 'comentario') accion = 'comentó tu publicación';
-            else if (notifType === 'follow' || notifType === 'conexion') accion = 'comenzó a seguirte';
-            else if (notifType === 'message') accion = 'te envió un mensaje';
-            else accion = 'interactuó contigo';
-            
-            return (
-              <div
-                key={notif.id}
-                onClick={() => marcarNotificacionLeida(notif.id)}
-                className={`p-4 border-b border-gray-800 last:border-b-0 cursor-pointer transition ${
-                  isNew ? 'bg-cyan-900/20 hover:bg-cyan-900/30' : 'hover:bg-gray-800'
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    notifType === 'like' ? 'bg-red-100/10' :
-                    (notifType === 'follow' || notifType === 'conexion') ? 'bg-blue-100/10' : 'bg-green-100/10'
-                  }`}>
-                    {notifType === 'like' && <Heart className="w-5 h-5 text-red-500" />}
-                    {(notifType === 'follow' || notifType === 'conexion') && <Users className="w-5 h-5 text-blue-500" />}
-                    {(notifType === 'comment' || notifType === 'comentario') && <MessageCircle className="w-5 h-5 text-green-500" />}
-                    {notifType === 'message' && <Mail className="w-5 h-5 text-purple-500" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-gray-100">
-                      <span className="font-semibold">{notifUser.name}</span> {accion}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">{formatTime(notif.timestamp || new Date(notif.created_at).getTime())}</p>
-                  </div>
-                  {isNew && (
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2" />
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold">Notificaciones</h2>
+          {unreadCount > 0 && (
+            <button
+              onClick={() => {
+                notificaciones.forEach(n => {
+                  if (!n.read && n.read !== undefined) {
+                    marcarNotificacionLeida(n.id);
+                  }
+                });
+              }}
+              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              Marcar todas como leídas
+            </button>
+          )}
+        </div>
+        <div className="bg-gray-900 rounded-2xl overflow-hidden divide-y divide-gray-800">
+          {notificaciones.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>No tienes notificaciones</p>
+            </div>
+          ) : (
+            Object.values(groupedNotifs).map(notifGroup => renderGroupedNotif(notifGroup))
+          )}
         </div>
       </div>
     );
@@ -2467,11 +2601,13 @@ export default function AylluIntegrado() {
             <div className="flex items-center space-x-4">
               <button 
                 onClick={() => setActiveView('notificaciones')}
-                className="relative p-2 hover:bg-gray-900 rounded-full transition-colors"
+                className="relative p-2 hover:bg-gray-900 rounded-full transition-colors group"
               >
-                <Bell size={20} />
-                {notificaciones.filter(n => n.nueva).length > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                <Bell size={20} className={unreadCount > 0 ? 'text-blue-400' : 'text-gray-400'} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
               </button>
               <div className="hidden md:block text-sm text-gray-400">
