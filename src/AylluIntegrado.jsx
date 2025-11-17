@@ -125,12 +125,6 @@ export default function AylluIntegrado() {
     }
   };
 
-  // useEffect para actualizar contador de notificaciones no leídas
-  useEffect(() => {
-    const unread = notificaciones.filter(n => n.read === false || n.nueva === true).length;
-    setUnreadCount(unread);
-  }, [notificaciones]);
-
   const [formData, setFormData] = useState({
     email: '',
     nombre: '',
@@ -405,6 +399,12 @@ export default function AylluIntegrado() {
   const [imagePreview, setImagePreview] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
   const [likeAnimation, setLikeAnimation] = useState({});
+
+  // useEffect para actualizar contador de notificaciones no leídas
+  useEffect(() => {
+    const unread = notificaciones.filter(n => n.read === false || n.nueva === true).length;
+    setUnreadCount(unread);
+  }, [notificaciones]);
 
   const handleLogin = async () => {
     if (!formData.email?.trim() || !formData.password?.trim()) {
