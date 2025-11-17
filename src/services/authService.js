@@ -191,9 +191,9 @@ export const authService = {
       let errorMessage = error.message || 'Error al solicitar restablecimiento de contraseña';
       
       if (errorMessage.includes('Email rate limit exceeded')) {
-        errorMessage = 'Has excedido el límite de correos. Por favor espera 10 minutos antes de intentar nuevamente.';
+        errorMessage = 'Has excedido el límite de correos. Por favor espera 1 minuto antes de intentar nuevamente.';
       } else if (errorMessage.includes('security purposes') || errorMessage.includes('only request this after')) {
-        errorMessage = 'Por seguridad, debes esperar 10 minutos antes de solicitar otro correo de recuperación.';
+        errorMessage = 'Por seguridad, debes esperar 1 minuto antes de solicitar otro correo de recuperación.';
       } else if (errorMessage.includes('User not found')) {
         errorMessage = 'No existe una cuenta con este correo electrónico.';
       } else if (errorMessage.includes('Invalid email')) {
