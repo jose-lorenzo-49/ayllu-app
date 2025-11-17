@@ -631,28 +631,34 @@ export default function AylluIntegrado() {
   const getFilteredPosts = () => {
     let filtered = [...allPosts];
     
-    if (feedFilter === 'all') {
-      // Toda la U: Algoritmo que prioriza posts con más interacciones
+    if (feedFilter === 'trending') {
+      // 🔥 TRENDING: SOLO confesiones anónimas, visibles para TODOS
+      // Usuario que postea NO se muestra (anónimo total)
       filtered = filtered
-        .filter(post => !post.isAnonymous && post.userId !== 'anonymous') // Excluir anónimos
-        .sort((a, b) => {
-          const scoreA = (a.likes?.length || 0) * 2 + (a.comments?.length || 0) * 3;
-          const scoreB = (b.likes?.length || 0) * 2 + (b.comments?.length || 0) * 3;
-          return scoreB - scoreA;
-        });
-    } else if (feedFilter === 'myConnections' && currentUser) {
-      filtered = filtered.filter(post => {
-        if (post.isAnonymous || post.userId === 'anonymous') return false; // Excluir anónimos
-        // Solo mostrar posts de usuarios conectados
-        return currentUser.connections.includes(post.userId);
-      });
-    } else if (feedFilter === 'trending') {
-      // Trending: Incluir SOLO posts anónimos + ordenar por engagement
-      filtered = filtered
-        .filter(post => post.isAnonymous || post.userId === 'anonymous')
+        .filter(post => post.isAnonymous === true || post.userId === 'anonymous')
         .sort((a, b) => {
           const scoreA = (a.likes?.length || 0) + (a.comments?.length || 0);
           const scoreB = (b.likes?.length || 0) + (b.comments?.length || 0);
+          return scoreB - scoreA;
+        });
+    } else if (feedFilter === 'myConnections' && currentUser) {
+      // 👥 MIS CONEXIONES: SOLO posts de usuarios conectados (RESTRICTIVO)
+      // Excluir posts anónimos completamente
+      filtered = filtered.filter(post => {
+        // No mostrar posts anónimos en esta sección
+        if (post.isAnonymous === true || post.userId === 'anonymous') return false;
+        // Solo mostrar posts de usuarios en mi lista de conexiones
+        return currentUser.connections.includes(post.userId);
+      });
+    } else if (feedFilter === 'all') {
+      // 🏛️ TODA LA U: TODOS los posts normales (NO anónimos)
+      // Visible para TODOS, ordenado por algoritmo de engagement
+      filtered = filtered
+        .filter(post => !(post.isAnonymous === true || post.userId === 'anonymous')) // Excluir anónimos
+        .sort((a, b) => {
+          // Algoritmo: likes × 2 + comentarios × 3
+          const scoreA = (a.likes?.length || 0) * 2 + (a.comments?.length || 0) * 3;
+          const scoreB = (b.likes?.length || 0) * 2 + (b.comments?.length || 0) * 3;
           return scoreB - scoreA;
         });
     }
@@ -1715,11 +1721,11 @@ export default function AylluIntegrado() {
             onClick={() => setFeedFilter('trending')}
             className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
               feedFilter === 'trending' 
-                ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white' 
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white' 
                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
-            🔥 Trending
+            💭 Confesiones
           </button>
         </div>
 
@@ -1731,7 +1737,7 @@ export default function AylluIntegrado() {
               <textarea
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
-                placeholder="¿Qué quieres compartir con tus conexiones?"
+                placeholder={isAnonymous ? "💭 Escribe tu confesión anónima..." : "¿Qué quieres compartir?"}
                 className="w-full bg-gray-800 rounded-xl p-3 outline-none resize-none text-gray-100"
                 rows="3"
               />
@@ -1756,6 +1762,15 @@ export default function AylluIntegrado() {
                       onChange={handleImageSelect}
                       className="hidden"
                     />
+                  </label>
+                  <label className={`flex items-center space-x-2 cursor-pointer px-3 py-2 rounded-full transition-all hover:bg-gray-800 ${isAnonymous ? 'bg-purple-900/30 text-purple-400' : 'text-gray-400'}`}>
+                    <input
+                      type="checkbox"
+                      checked={isAnonymous}
+                      onChange={(e) => setIsAnonymous(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm font-medium">💭 Confesión Anónima</span>
                   </label>
                 </div>
                 <button 
