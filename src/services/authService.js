@@ -228,9 +228,21 @@ export const authService = {
       };
     } catch (error) {
       console.error('Error actualizando contraseña:', error);
+      
+      // Traducir errores comunes de Supabase al español
+      let errorMessage = error.message || 'Error al actualizar contraseña';
+      
+      if (errorMessage.includes('New password should be different from the old password')) {
+        errorMessage = 'La nueva contraseña debe ser diferente de la contraseña anterior.';
+      } else if (errorMessage.includes('Password should be at least')) {
+        errorMessage = 'La contraseña debe tener al menos 6 caracteres.';
+      } else if (errorMessage.includes('same as the old password')) {
+        errorMessage = 'La nueva contraseña no puede ser igual a la anterior.';
+      }
+      
       return {
         success: false,
-        error: error.message || 'Error al actualizar contraseña'
+        error: errorMessage
       };
     }
   },
