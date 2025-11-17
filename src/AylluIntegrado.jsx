@@ -1726,7 +1726,7 @@ export default function AylluIntegrado() {
               />
               {imagePreview && (
                 <div className="relative mt-2">
-                  <img src={imagePreview} alt="Preview" className="w-full rounded-lg max-h-64 object-cover" />
+                  <img src={imagePreview} alt="Preview" className="w-full rounded-lg max-h-96 object-contain bg-gray-800" />
                   <button
                     onClick={() => setImagePreview(null)}
                     className="absolute top-2 right-2 bg-black/70 hover:bg-black p-2 rounded-full transition-colors"
@@ -1826,7 +1826,7 @@ export default function AylluIntegrado() {
                     </div>
                     <p className="mt-3 text-gray-100 leading-relaxed">{post.content}</p>
                     {post.image && (
-                      <img src={post.image} alt="Post" className="mt-3 rounded-lg w-full max-h-96 object-cover" />
+                      <img src={post.image} alt="Post" className="mt-3 rounded-lg w-full max-h-[600px] object-contain bg-gray-800" />
                     )}
                     
                     <div className="flex items-center space-x-6 mt-4">
