@@ -407,6 +407,38 @@ export default function AylluIntegrado() {
     setUnreadCount(unread);
   }, [notificaciones]);
 
+  // useEffect para suscripción en tiempo real a notificaciones
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Cargar notificaciones iniciales
+    loadNotifications();
+
+    // Suscribirse a cambios en tiempo real
+    const channel = supabase
+      .channel('notifications-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUser.id}`
+        },
+        (payload) => {
+          console.log('Nueva notificación recibida:', payload);
+          // Recargar notificaciones cuando hay una nueva
+          loadNotifications();
+        }
+      )
+      .subscribe();
+
+    // Cleanup: desuscribirse al desmontar
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser]);
+
   const handleLogin = async () => {
     if (!formData.email?.trim() || !formData.password?.trim()) {
       setAuthError('Por favor ingresa email y contraseña');
@@ -758,6 +790,11 @@ export default function AylluIntegrado() {
           type: 'follow',
           from_user_id: currentUser.id
         }]);
+      
+      // Recargar notificaciones del usuario que recibió el follow
+      if (userId === currentUser.id) {
+        await loadNotifications();
+      }
 
     } catch (error) {
       console.error('Error al conectar:', error);
@@ -878,6 +915,11 @@ export default function AylluIntegrado() {
             from_user_id: currentUser.id,
             post_id: postId
           }]);
+        
+        // Recargar notificaciones del usuario que recibió el comentario
+        if (post.userId === currentUser.id) {
+          await loadNotifications();
+        }
       }
     } catch (error) {
       console.error('Error al comentar:', error);
@@ -1020,6 +1062,11 @@ export default function AylluIntegrado() {
               from_user_id: currentUser.id,
               post_id: postId
             }]);
+          
+          // Recargar notificaciones del usuario que recibió el like
+          if (post.userId === currentUser.id) {
+            await loadNotifications();
+          }
         }
       }
 
