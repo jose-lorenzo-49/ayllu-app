@@ -383,9 +383,11 @@ export default function AylluIntegrado() {
   ]);
 
   const [activeView, setActiveView] = useState('feed');
+  const [feedFilter, setFeedFilter] = useState('all'); // 'all', 'myFaculty', 'trending'
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newPost, setNewPost] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false); // Para confesiones anónimas
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [editingProfile, setEditingProfile] = useState(null);
@@ -625,6 +627,54 @@ export default function AylluIntegrado() {
     }
   };
 
+  // Función para filtrar posts según el tab seleccionado
+  const getFilteredPosts = () => {
+    let filtered = [...allPosts];
+    
+    if (feedFilter === 'myFaculty' && currentUser) {
+      filtered = filtered.filter(post => {
+        if (post.userId === 'anonymous') return true;
+        const postUser = getUserById(post.userId);
+        return postUser?.faculty === currentUser.faculty;
+      });
+    } else if (feedFilter === 'trending') {
+      // Ordenar por engagement (likes + comments)
+      filtered = filtered.sort((a, b) => {
+        const scoreA = (a.likes?.length || 0) + (a.comments?.length || 0);
+        const scoreB = (b.likes?.length || 0) + (b.comments?.length || 0);
+        return scoreB - scoreA;
+      });
+    }
+    
+    return filtered;
+  };
+
+  // Función para calcular ranking de facultades
+  const getFacultyRanking = () => {
+    const ranking = {};
+    
+    FACULTADES.forEach(faculty => {
+      ranking[faculty] = 0;
+    });
+    
+    allPosts.forEach(post => {
+      const user = getUserById(post.userId);
+      if (user && user.faculty) {
+        // 10 puntos por post
+        ranking[user.faculty] += 10;
+        // 3 puntos por comentario
+        ranking[user.faculty] += (post.comments?.length || 0) * 3;
+        // 1 punto por like
+        ranking[user.faculty] += (post.likes?.length || 0);
+      }
+    });
+    
+    return Object.entries(ranking)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([faculty, points]) => ({ faculty, points }));
+  };
+
   const getUserById = (id) => {
     const user = users.find(u => u.id === id);
     if (!user && id === currentUser?.id) return currentUser;
@@ -645,7 +695,6 @@ export default function AylluIntegrado() {
   };
 
   const isConnected = (userId) => currentUser?.connections.includes(userId);
-  const getFeedPosts = () => allPosts.filter(post => currentUser?.connections.includes(post.userId)).sort((a, b) => b.timestamp - a.timestamp);
   const getSuggestions = () => users.filter(u => u.id !== currentUser?.id && !currentUser?.connections.includes(u.id));
 
   const addConnection = async (userId) => {
@@ -720,7 +769,8 @@ export default function AylluIntegrado() {
         .insert([{
           user_id: currentUser.id,
           content: newPost,
-          image: imagePreview
+          image: imagePreview,
+          is_anonymous: isAnonymous
         }])
         .select()
         .single();
@@ -730,9 +780,10 @@ export default function AylluIntegrado() {
         // Fallback a localStorage si falla Supabase
         setAllPosts([{
           id: allPosts.length + 1,
-          userId: currentUser.id,
+          userId: isAnonymous ? 'anonymous' : currentUser.id,
           content: newPost,
           image: imagePreview,
+          isAnonymous: isAnonymous,
           likes: [],
           comments: [],
           timestamp: Date.now()
@@ -740,9 +791,10 @@ export default function AylluIntegrado() {
       } else {
         const newPostFormatted = {
           id: data.id,
-          userId: currentUser.id,
+          userId: isAnonymous ? 'anonymous' : currentUser.id,
           content: data.content,
           image: data.image,
+          isAnonymous: data.is_anonymous || isAnonymous,
           likes: [],
           comments: [],
           timestamp: new Date(data.created_at).getTime()
@@ -752,20 +804,23 @@ export default function AylluIntegrado() {
       
       setNewPost('');
       setImagePreview(null);
+      setIsAnonymous(false);
     } catch (error) {
       console.error('Error creating post:', error);
       // Fallback a localStorage
       setAllPosts([{
         id: allPosts.length + 1,
-        userId: currentUser.id,
+        userId: isAnonymous ? 'anonymous' : currentUser.id,
         content: newPost,
         image: imagePreview,
+        isAnonymous: isAnonymous,
         likes: [],
         comments: [],
         timestamp: Date.now()
       }, ...allPosts]);
       setNewPost('');
       setImagePreview(null);
+      setIsAnonymous(false);
     } finally {
       setIsPosting(false);
     }
@@ -1618,9 +1673,46 @@ export default function AylluIntegrado() {
 
   // RENDER FUNCTIONS
   const renderFeed = () => {
-    const feedPosts = getFeedPosts();
+    const feedPosts = getFilteredPosts();
+    const facultyRanking = getFacultyRanking();
+    
     return (
       <div>
+        {/* Tabs de filtro */}
+        <div className="bg-gray-900 rounded-2xl mb-4 p-2 flex space-x-2">
+          <button
+            onClick={() => setFeedFilter('all')}
+            className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
+              feedFilter === 'all' 
+                ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            🏛️ Toda la U
+          </button>
+          <button
+            onClick={() => setFeedFilter('myFaculty')}
+            className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
+              feedFilter === 'myFaculty' 
+                ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            🎓 Mi Facultad
+          </button>
+          <button
+            onClick={() => setFeedFilter('trending')}
+            className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
+              feedFilter === 'trending' 
+                ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            🔥 Trending
+          </button>
+        </div>
+
+        {/* Formulario para crear posts */}
         <div className="bg-gray-900 p-4 rounded-2xl mb-4">
           <div className="flex space-x-3">
             <img src={currentUser.avatar} alt={currentUser.name} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
@@ -1628,7 +1720,7 @@ export default function AylluIntegrado() {
               <textarea
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
-                placeholder="¿Qué quieres compartir con tus conexiones?"
+                placeholder={isAnonymous ? "Comparte tu confesión anónimamente..." : "¿Qué quieres compartir con tus conexiones?"}
                 className="w-full bg-gray-800 rounded-xl p-3 outline-none resize-none text-gray-100"
                 rows="3"
               />
@@ -1644,15 +1736,26 @@ export default function AylluIntegrado() {
                 </div>
               )}
               <div className="flex justify-between items-center mt-2">
-                <label className="cursor-pointer text-gray-400 hover:text-orange-500 transition-colors p-2 hover:bg-gray-800 rounded-full">
-                  <ImageIcon size={20} />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex items-center space-x-3">
+                  <label className="cursor-pointer text-gray-400 hover:text-orange-500 transition-colors p-2 hover:bg-gray-800 rounded-full">
+                    <ImageIcon size={20} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer text-gray-400 hover:text-purple-400 transition-colors px-3 py-2 hover:bg-gray-800 rounded-full">
+                    <input
+                      type="checkbox"
+                      checked={isAnonymous}
+                      onChange={(e) => setIsAnonymous(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm">💭 Anónimo</span>
+                  </label>
+                </div>
                 <button 
                   onClick={createPost}
                   disabled={(!newPost.trim() && !imagePreview) || isPosting}
@@ -1680,7 +1783,13 @@ export default function AylluIntegrado() {
           </div>
         ) : (
           feedPosts.map(post => {
-            const author = getUserById(post.userId);
+            const author = post.isAnonymous || post.userId === 'anonymous' 
+              ? { 
+                  name: 'Confesión Anónima', 
+                  avatar: 'https://ui-avatars.com/api/?name=?&background=6b7280&color=fff&size=200',
+                  faculty: '💭 Anónimo'
+                }
+              : getUserById(post.userId);
             return (
               <div key={post.id} className="bg-gray-900 p-4 rounded-2xl mb-4">
                 <div className="flex space-x-3">
@@ -1688,24 +1797,30 @@ export default function AylluIntegrado() {
                     src={author.avatar} 
                     alt={author.name}
                     onClick={() => {
-                      setSelectedProfile(author);
-                      setActiveView('viewProfile');
+                      if (!post.isAnonymous && post.userId !== 'anonymous') {
+                        setSelectedProfile(author);
+                        setActiveView('viewProfile');
+                      }
                     }}
-                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                    className={`w-12 h-12 rounded-full object-cover flex-shrink-0 ${!post.isAnonymous && post.userId !== 'anonymous' ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
                   />
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <div>
                         <div 
                           onClick={() => {
-                            setSelectedProfile(author);
-                            setActiveView('viewProfile');
+                            if (!post.isAnonymous && post.userId !== 'anonymous') {
+                              setSelectedProfile(author);
+                              setActiveView('viewProfile');
+                            }
                           }}
-                          className="font-bold hover:underline cursor-pointer"
+                          className={`font-bold ${!post.isAnonymous && post.userId !== 'anonymous' ? 'hover:underline cursor-pointer' : 'text-purple-400'}`}
                         >
                           {author.name}
                         </div>
-                        <div className="text-sm text-orange-500">{author.faculty}</div>
+                        <div className={`text-sm ${post.isAnonymous || post.userId === 'anonymous' ? 'text-purple-400' : 'text-orange-500'}`}>
+                          {author.faculty}
+                        </div>
                       </div>
                       <div className="text-sm text-gray-500">{formatTime(post.timestamp)}</div>
                     </div>
@@ -2374,9 +2489,9 @@ export default function AylluIntegrado() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 pt-20 pb-24 md:pb-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="hidden md:block">
+      <div className="max-w-7xl mx-auto px-4 pt-20 pb-24 md:pb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="hidden md:block md:col-span-1">
             <nav className="sticky top-20 space-y-2">
               {[
                 { icon: Home, label: 'Inicio', view: 'feed' },
@@ -2399,10 +2514,31 @@ export default function AylluIntegrado() {
                   <span>{item.label}</span>
                 </button>
               ))}
+              
+              {/* Ranking de Facultades */}
+              <div className="bg-gray-900 rounded-2xl p-4 mt-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <TrendingUp className="text-yellow-500" size={20} />
+                  <h3 className="font-bold text-yellow-400">Top Facultades</h3>
+                </div>
+                <div className="space-y-3">
+                  {getFacultyRanking().map((item, index) => (
+                    <div key={item.faculty} className="flex items-center space-x-2">
+                      <span className={`text-lg font-bold ${index === 0 ? 'text-yellow-400' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-orange-400' : 'text-gray-500'}`}>
+                        #{index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate">{item.faculty}</div>
+                        <div className="text-xs text-gray-500">{item.points} puntos</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </nav>
           </div>
 
-          <div className="md:col-span-3">
+          <div className="md:col-span-4">
             {activeView === 'feed' && renderFeed()}
             {activeView === 'connections' && renderConnections()}
             {activeView === 'search' && renderSearch()}
