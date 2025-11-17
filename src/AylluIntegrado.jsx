@@ -95,6 +95,7 @@ export default function AylluIntegrado() {
           userId: post.user_id,
           content: post.content,
           image: post.image,
+          isAnonymous: post.is_anonymous || false,
           likes: post.likes?.map(like => like.user_id) || [],
           comments: post.comments?.map(comment => ({
             userId: comment.user_id,
@@ -1220,22 +1221,37 @@ export default function AylluIntegrado() {
     if (!currentUser) return;
 
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('notifications')
         .select(`
-          *,
-          from_user:from_user_id(name, avatar),
-          post:post_id(content)
+          id,
+          type,
+          from_user_id,
+          post_id,
+          read,
+          created_at,
+          from_user:users!notifications_from_user_id_fkey(
+            id,
+            name,
+            avatar,
+            faculty
+          )
         `)
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(50);
+
+      if (error) {
+        console.error('Error cargando notificaciones:', error);
+        return;
+      }
 
       if (data && data.length > 0) {
         const formattedNotifs = data.map(n => ({
           id: n.id,
           type: n.type,
           userId: n.from_user_id,
+          fromUser: n.from_user, // Datos completos del usuario
           postId: n.post_id,
           timestamp: new Date(n.created_at).getTime(),
           read: n.read,
@@ -2231,7 +2247,13 @@ export default function AylluIntegrado() {
         accion = 'interactuó contigo';
       }
 
-      const notifUser = getUserById(firstNotif.userId);
+      // Obtener datos del usuario desde fromUser (Supabase) o desde getUserById (fallback)
+      const notifUser = firstNotif.fromUser || getUserById(firstNotif.userId);
+      
+      // Validar que tenemos datos del usuario
+      if (!notifUser || !notifUser.name) {
+        return null;
+      }
       
       return (
         <div
@@ -2246,11 +2268,11 @@ export default function AylluIntegrado() {
           <div className="flex items-start gap-4">
             <div className="relative">
               <img 
-                src={notifUser.avatar} 
+                src={notifUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(notifUser.name)}&background=random`} 
                 alt={notifUser.name} 
-                className="w-12 h-12 rounded-full object-cover"
+                className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-700"
               />
-              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ${
+              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center shadow-lg ${
                 notifType === 'like' ? 'bg-red-500' :
                 (notifType === 'follow' || notifType === 'conexion') ? 'bg-blue-500' : 'bg-green-500'
               }`}>
@@ -2260,9 +2282,14 @@ export default function AylluIntegrado() {
               </div>
             </div>
             <div className="flex-1">
-              <p className="text-gray-100 text-sm">
-                <span className="font-semibold">{notifUser.name}</span> {accion}
+              <p className="text-gray-100 text-sm leading-relaxed">
+                <span className="font-semibold text-white">{notifUser.name}</span>
+                {count > 1 && <span className="text-gray-400"> y {count - 1} más</span>}
+                {' '}{accion}
               </p>
+              {notifUser.faculty && (
+                <p className="text-xs text-orange-500 mt-0.5">{notifUser.faculty}</p>
+              )}
               <p className="text-xs text-gray-500 mt-1">{formatTime(firstNotif.timestamp || new Date(firstNotif.created_at).getTime())}</p>
             </div>
             {isNew && (
