@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Send, UserPlus, Search, Home, Users, Mail, User, X, Check, ArrowLeft, Edit2, MapPin, Bell, LogOut, GraduationCap, Sparkles, TrendingUp, Share2, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Heart, MessageCircle, Send, UserPlus, Search, Home, Users, Mail, User, X, Check, ArrowLeft, Edit2, MapPin, Bell, LogOut, GraduationCap, Sparkles, TrendingUp, Share2, Image as ImageIcon, Loader2, Lock } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import authService from './services/authService';
+import SecretosView from './components/SecretosView';
 
 const FACULTADES = [
   "Medicina Humana",
@@ -387,6 +388,7 @@ export default function AylluIntegrado() {
 
   const [activeView, setActiveView] = useState('feed');
   const [feedFilter, setFeedFilter] = useState('all'); // 'all', 'myConnections', 'trending'
+  const [showSecretosView, setShowSecretosView] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newPost, setNewPost] = useState('');
@@ -400,6 +402,9 @@ export default function AylluIntegrado() {
   const [imagePreview, setImagePreview] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
   const [likeAnimation, setLikeAnimation] = useState({});
+  const [editingPost, setEditingPost] = useState(null);
+  const [editPostContent, setEditPostContent] = useState('');
+  const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
 
   // useEffect para actualizar contador de notificaciones no leídas
   useEffect(() => {
@@ -801,6 +806,52 @@ export default function AylluIntegrado() {
     }
   };
 
+  const removeConnection = async (userId) => {
+    try {
+      // Eliminar conexión de Supabase
+      await supabase
+        .from('connections')
+        .delete()
+        .or(`and(user_id.eq.${currentUser.id},connected_user_id.eq.${userId}),and(user_id.eq.${userId},connected_user_id.eq.${currentUser.id})`);
+
+      // Actualizar el array de connections en la tabla users (ambos usuarios)
+      const updatedConnections = (currentUser.connections || []).filter(id => id !== userId);
+      
+      await supabase
+        .from('users')
+        .update({ connections: updatedConnections })
+        .eq('id', currentUser.id);
+
+      // Remover este usuario de las conexiones del otro usuario
+      const { data: otherUser } = await supabase
+        .from('users')
+        .select('connections')
+        .eq('id', userId)
+        .single();
+
+      if (otherUser) {
+        const otherUserConnections = (otherUser.connections || []).filter(id => id !== currentUser.id);
+        await supabase
+          .from('users')
+          .update({ connections: otherUserConnections })
+          .eq('id', userId);
+      }
+
+      // Actualizar estado local
+      setCurrentUser(prev => ({ ...prev, connections: updatedConnections }));
+      setUsers(users.map(u => 
+        u.id === userId 
+          ? {...u, connections: (u.connections || []).filter(id => id !== currentUser.id)} 
+          : u.id === currentUser.id
+          ? {...u, connections: updatedConnections}
+          : u
+      ));
+
+    } catch (error) {
+      console.error('Error al desconectar:', error);
+    }
+  };
+
   const createPost = async () => {
     if (!newPost.trim() && !imagePreview) return;
 
@@ -866,6 +917,66 @@ export default function AylluIntegrado() {
     } finally {
       setIsPosting(false);
     }
+  };
+
+  const editPost = async (postId, newContent) => {
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .update({ content: newContent })
+        .eq('id', postId)
+        .eq('user_id', currentUser.id);
+
+      if (error) {
+        console.error('Error editando post:', error);
+        return;
+      }
+
+      setAllPosts(allPosts.map(post => 
+        post.id === postId ? { ...post, content: newContent } : post
+      ));
+      setEditingPost(null);
+      setEditPostContent('');
+    } catch (error) {
+      console.error('Error al editar post:', error);
+    }
+  };
+
+  const deletePost = async (postId) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar esta publicación?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId)
+        .eq('user_id', currentUser.id);
+
+      if (error) {
+        console.error('Error eliminando post:', error);
+        return;
+      }
+
+      setAllPosts(allPosts.filter(post => post.id !== postId));
+    } catch (error) {
+      console.error('Error al eliminar post:', error);
+    }
+  };
+
+  const getAnonymousPosts = () => {
+    return allPosts
+      .filter(post => post.isAnonymous || post.userId === 'anonymous')
+      .sort((a, b) => {
+        const now = Date.now();
+        const ageA = (now - a.timestamp) / (1000 * 60 * 60);
+        const ageB = (now - b.timestamp) / (1000 * 60 * 60);
+        
+        const scoreA = (a.likes?.length || 0) * 2 + (a.comments?.length || 0) * 3 - (ageA * 0.1);
+        const scoreB = (b.likes?.length || 0) * 2 + (b.comments?.length || 0) * 3 - (ageB * 0.1);
+        
+        return scoreB - scoreA;
+      })
+      .slice(0, 5);
   };
 
   const addComment = async (postId, text) => {
@@ -1784,7 +1895,7 @@ export default function AylluIntegrado() {
               <textarea
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
-                placeholder={isAnonymous ? "💭 Escribe tu confesión anónima..." : "¿Qué quieres compartir?"}
+                placeholder={isAnonymous ? "🎭 Comparte algo de forma anónima y segura..." : "¿Qué quieres compartir?"}
                 className="w-full bg-gray-800 rounded-xl p-3 outline-none resize-none text-gray-100"
                 rows="3"
               />
@@ -1817,7 +1928,7 @@ export default function AylluIntegrado() {
                       onChange={(e) => setIsAnonymous(e.target.checked)}
                       className="rounded"
                     />
-                    <span className="text-sm font-medium">💭 Confesión Anónima</span>
+                    <span className="text-sm font-medium">🎭 Modo Anónimo</span>
                   </label>
                 </div>
                 <button 
@@ -1849,13 +1960,13 @@ export default function AylluIntegrado() {
           feedPosts.map(post => {
             const author = post.isAnonymous || post.userId === 'anonymous' 
               ? { 
-                  name: 'Confesión Anónima', 
+                  name: 'Sanmarquino Anónimo', 
                   avatar: 'https://ui-avatars.com/api/?name=?&background=6b7280&color=fff&size=200',
-                  faculty: '💭 Anónimo'
+                  faculty: '🎭 Incógnito'
                 }
               : getUserById(post.userId);
             return (
-              <div key={post.id} className="bg-gray-900 p-4 rounded-2xl mb-4">
+              <div key={post.id} id={`post-${post.id}`} className="bg-gray-900 p-4 rounded-2xl mb-4 transition-all">
                 <div className="flex space-x-3">
                   <img 
                     src={author.avatar} 
@@ -1898,9 +2009,60 @@ export default function AylluIntegrado() {
                           {author.faculty}
                         </div>
                       </div>
-                      <div className="text-sm text-gray-500">{formatTime(post.timestamp)}</div>
+                      <div className="flex items-center space-x-2">
+                        <div className="text-sm text-gray-500">{formatTime(post.timestamp)}</div>
+                        {post.userId === currentUser.id && !post.isAnonymous && (
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => {
+                                setEditingPost(post.id);
+                                setEditPostContent(post.content);
+                              }}
+                              className="text-gray-500 hover:text-blue-500 p-1 rounded transition-colors"
+                              title="Editar"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => deletePost(post.id)}
+                              className="text-gray-500 hover:text-red-500 p-1 rounded transition-colors"
+                              title="Eliminar"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <p className="mt-3 text-gray-100 leading-relaxed">{post.content}</p>
+                    {editingPost === post.id ? (
+                      <div className="mt-3 space-y-2">
+                        <textarea
+                          value={editPostContent}
+                          onChange={(e) => setEditPostContent(e.target.value)}
+                          className="w-full bg-gray-800 rounded-lg p-3 text-gray-100 resize-none outline-none"
+                          rows="3"
+                        />
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => editPost(post.id, editPostContent)}
+                            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingPost(null);
+                              setEditPostContent('');
+                            }}
+                            className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-gray-100 leading-relaxed">{post.content}</p>
+                    )}
                     {post.image && (
                       <div 
                         className="relative mt-3 group cursor-pointer"
@@ -2102,6 +2264,13 @@ export default function AylluIntegrado() {
                   <div className="text-sm text-orange-500">{user.faculty}</div>
                   <div className="text-sm text-gray-500">{user.year}</div>
                 </div>
+                <button
+                  onClick={() => removeConnection(user.id)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <X size={16} />
+                  <span>Dejar de seguir</span>
+                </button>
               </div>
             </div>
           ))}
@@ -2417,7 +2586,7 @@ export default function AylluIntegrado() {
   const renderViewProfile = () => {
     if (!selectedProfile) return null;
     const isConnectedUser = isConnected(selectedProfile.id);
-    const userConnections = users.filter(u => selectedProfile.connections.includes(u.id));
+    const userConnections = users.filter(u => (selectedProfile.connections || []).includes(u.id));
     
     return (
       <div>
@@ -2627,25 +2796,162 @@ export default function AylluIntegrado() {
               <div className="text-xs text-gray-500 font-medium">San Marcos</div>
             </div>
             <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => setActiveView('notificaciones')}
-                className="relative p-2 hover:bg-gray-900 rounded-full transition-colors group"
-              >
-                <Bell size={20} className={unreadCount > 0 ? 'text-blue-400' : 'text-gray-400'} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotificationsMenu(!showNotificationsMenu)}
+                  className="relative p-2 hover:bg-gray-900 rounded-full transition-colors group"
+                >
+                  <Bell size={20} className={unreadCount > 0 ? 'text-blue-400' : 'text-gray-400'} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 animate-pulse">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {showNotificationsMenu && (
+                  <div className="absolute right-0 mt-2 w-96 max-h-[600px] bg-gray-900 rounded-xl shadow-2xl border border-gray-800 overflow-hidden z-50">
+                    <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+                      <h3 className="text-lg font-bold">Notificaciones</h3>
+                      <button onClick={() => setShowNotificationsMenu(false)} className="hover:bg-gray-800 p-2 rounded-full transition-colors">
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto max-h-[500px]">
+                      {notificaciones.length === 0 ? (
+                        <div className="p-8 text-center text-gray-500">
+                          <Bell size={48} className="mx-auto mb-4 opacity-50" />
+                          <p>No tienes notificaciones</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-800">
+                          {(() => {
+                            const groupedNotifs = {};
+                            notificaciones.forEach(notif => {
+                              const key = `${notif.type}-${notif.postId || 'general'}`;
+                              if (!groupedNotifs[key]) {
+                                groupedNotifs[key] = [];
+                              }
+                              groupedNotifs[key].push(notif);
+                            });
+                            
+                            return Object.values(groupedNotifs).map((notifs, idx) => {
+                              const firstNotif = notifs[0];
+                              const notifType = firstNotif.type || firstNotif.tipo;
+                              const isNew = notifs.some(n => n.read === false || n.nueva === true);
+                              const notifUser = firstNotif.fromUser || getUserById(firstNotif.userId);
+                              
+                              if (!notifUser || !notifUser.name) return null;
+                              
+                              let accion = '';
+                              let icon = null;
+                              let colorClass = '';
+                              
+                              if (notifType === 'like') {
+                                accion = 'le dio like a tu publicación';
+                                icon = <Heart className="w-3.5 h-3.5 text-white fill-white" />;
+                                colorClass = 'bg-gradient-to-br from-red-500 to-pink-500';
+                              } else if (notifType === 'comment' || notifType === 'comentario') {
+                                accion = 'comentó tu publicación';
+                                icon = <MessageCircle className="w-3.5 h-3.5 text-white" />;
+                                colorClass = 'bg-gradient-to-br from-green-500 to-emerald-500';
+                              } else if (notifType === 'follow' || notifType === 'conexion') {
+                                accion = 'comenzó a seguirte';
+                                icon = <UserPlus className="w-3.5 h-3.5 text-white" />;
+                                colorClass = 'bg-gradient-to-br from-blue-500 to-cyan-500';
+                              } else {
+                                accion = 'interactuó contigo';
+                                icon = <Bell className="w-3.5 h-3.5 text-white" />;
+                                colorClass = 'bg-gradient-to-br from-purple-500 to-violet-500';
+                              }
+                              
+                              const handleNotificationClick = () => {
+                                // Marcar notificación como leída
+                                if (isNew) {
+                                  notifs.forEach(async (notif) => {
+                                    if (notif.id && (notif.read === false || notif.nueva === true)) {
+                                      await supabase
+                                        .from('notifications')
+                                        .update({ read: true })
+                                        .eq('id', notif.id);
+                                    }
+                                  });
+                                }
+                                
+                                // Cerrar menú
+                                setShowNotificationsMenu(false);
+                                
+                                // Navegar según el tipo de notificación
+                                if (notifType === 'follow' || notifType === 'conexion') {
+                                  // Si es follow, ir al perfil del usuario
+                                  setSelectedProfile(notifUser);
+                                  setActiveView('viewProfile');
+                                } else if (firstNotif.postId) {
+                                  // Si tiene postId, ir al feed y abrir el post
+                                  setActiveView('feed');
+                                  // Opcional: scroll al post específico
+                                  setTimeout(() => {
+                                    const postElement = document.getElementById(`post-${firstNotif.postId}`);
+                                    if (postElement) {
+                                      postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      postElement.classList.add('ring-2', 'ring-orange-500');
+                                      setTimeout(() => {
+                                        postElement.classList.remove('ring-2', 'ring-orange-500');
+                                      }, 2000);
+                                    }
+                                  }, 100);
+                                } else {
+                                  // Por defecto ir al feed
+                                  setActiveView('feed');
+                                }
+                              };
+                              
+                              return (
+                                <div 
+                                  key={idx} 
+                                  onClick={handleNotificationClick}
+                                  className={`p-4 hover:bg-gray-800/50 transition-colors cursor-pointer ${isNew ? 'bg-blue-900/10' : ''}`}
+                                >
+                                  <div className="flex items-start space-x-3">
+                                    <div className="relative flex-shrink-0">
+                                      <img src={notifUser.avatar} alt={notifUser.name} className="w-10 h-10 rounded-full object-cover" />
+                                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 ${colorClass} rounded-full flex items-center justify-center shadow-lg`}>
+                                        {icon}
+                                      </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm">
+                                        <span className="font-semibold">{notifUser.name}</span>
+                                        {' '}{accion}
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-1">Hace {firstNotif.tiempo || '1h'}</p>
+                                    </div>
+                                    {isNew && (
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
               <div className="hidden md:block text-sm text-gray-400">
                 {currentUser?.name || 'Usuario'}
               </div>
-              <img src={currentUser?.avatar || 'https://ui-avatars.com/api/?name=User&background=random'} alt={currentUser?.name || 'User'} className="w-10 h-10 rounded-full object-cover" />
+              <button
+                onClick={() => setActiveView('profile')}
+                className="w-10 h-10 rounded-full overflow-hidden hover:ring-2 hover:ring-orange-500 transition-all"
+              >
+                <img src={currentUser?.avatar || 'https://ui-avatars.com/api/?name=User&background=random'} alt={currentUser?.name || 'User'} className="w-full h-full object-cover" />
+              </button>
               <button
                 onClick={handleLogout}
-                className="text-gray-400 hover:text-red-500 p-2"
-                title="Cerrar sesión"
+                className="p-2 hover:bg-gray-900 rounded-full transition-colors text-red-400"
               >
                 <LogOut size={20} />
               </button>
@@ -2660,9 +2966,9 @@ export default function AylluIntegrado() {
             <nav className="sticky top-20 space-y-2">
               {[
                 { icon: Home, label: 'Inicio', view: 'feed' },
+                { icon: Lock, label: 'Anónimo', view: 'secretos' },
                 { icon: Search, label: 'Buscar', view: 'search' },
                 { icon: Users, label: 'Conexiones', view: 'connections' },
-                { icon: Bell, label: 'Notificaciones', view: 'notificaciones' },
                 { icon: User, label: 'Perfil', view: 'profile' }
               ].map((item) => (
                 <button
@@ -2678,32 +2984,23 @@ export default function AylluIntegrado() {
                   <span>{item.label}</span>
                 </button>
               ))}
-              
-              {/* Ranking de Facultades */}
-              <div className="bg-gray-900 rounded-2xl p-4 mt-6">
-                <div className="flex items-center space-x-2 mb-4">
-                  <TrendingUp className="text-yellow-500" size={20} />
-                  <h3 className="font-bold text-yellow-400">Top Facultades</h3>
-                </div>
-                <div className="space-y-3">
-                  {getFacultyRanking().map((item, index) => (
-                    <div key={item.faculty} className="flex items-center space-x-2">
-                      <span className={`text-lg font-bold ${index === 0 ? 'text-yellow-400' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-orange-400' : 'text-gray-500'}`}>
-                        #{index + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold truncate">{item.faculty}</div>
-                        <div className="text-xs text-gray-500">{item.points} puntos</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </nav>
           </div>
 
           <div className="md:col-span-4">
             {activeView === 'feed' && renderFeed()}
+            {activeView === 'secretos' && (
+              <SecretosView 
+                posts={allPosts}
+                currentUser={currentUser}
+                onLike={likePost}
+                onComment={(postId) => setShowComments({...showComments, [postId]: true})}
+                onReport={(postId) => alert('Función de reporte en desarrollo')}
+                addComment={addComment}
+                onEditPost={editPost}
+                onDeletePost={deletePost}
+              />
+            )}
             {activeView === 'connections' && renderConnections()}
             {activeView === 'search' && renderSearch()}
             {activeView === 'notificaciones' && renderNotificaciones()}
@@ -2718,8 +3015,8 @@ export default function AylluIntegrado() {
         <div className="flex items-center justify-around h-16">
           {[
             { icon: Home, view: 'feed' },
+            { icon: Lock, view: 'secretos' },
             { icon: Search, view: 'search' },
-            { icon: Users, view: 'connections' },
             { icon: Bell, view: 'notificaciones' },
             { icon: User, view: 'profile' }
           ].map((item) => (
