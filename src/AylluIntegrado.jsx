@@ -521,7 +521,56 @@ export default function AylluIntegrado() {
 
       if (result.success) {
         // Sesión iniciada automáticamente
-        setCurrentUser(result.data.profile);
+        const newUser = result.data.profile;
+        setCurrentUser(newUser);
+        
+        // Buscar usuario "marina gold" y seguirlo automáticamente
+        try {
+          const { data: marinaUser } = await supabase
+            .from('users')
+            .select('id')
+            .ilike('name', '%marina%gold%')
+            .single();
+          
+          if (marinaUser) {
+            // Crear conexión con marina gold
+            await supabase
+              .from('connections')
+              .insert([{
+                user_id: newUser.id,
+                connected_user_id: marinaUser.id
+              }]);
+            
+            // Actualizar el array de connections del nuevo usuario
+            const updatedConnections = [marinaUser.id];
+            await supabase
+              .from('users')
+              .update({ connections: updatedConnections })
+              .eq('id', newUser.id);
+            
+            // Actualizar conexiones de marina gold
+            const { data: marinaData } = await supabase
+              .from('users')
+              .select('connections')
+              .eq('id', marinaUser.id)
+              .single();
+            
+            if (marinaData) {
+              const marinaConnections = [...(marinaData.connections || []), newUser.id];
+              await supabase
+                .from('users')
+                .update({ connections: marinaConnections })
+                .eq('id', marinaUser.id);
+            }
+            
+            // Actualizar el currentUser con las conexiones
+            newUser.connections = updatedConnections;
+            setCurrentUser(newUser);
+          }
+        } catch (error) {
+          console.log('Error conectando con marina gold:', error);
+        }
+        
         await loadSupabaseData();
         setFormData({
           email: '',
